@@ -1,0 +1,26 @@
+datasets:
+  BioMed_noisy:
+    kg_path: "../datasets/biomedical/noisy/mm_kg.json"
+    gs_path: "../datasets/biomedical/GS.xlsx"
+    save_splits: "../datasets/biomedical/noisy/splits"
+
+  BioMed_clean_KG:
+    kg_path: "../datasets/biomedical/clean/reference_kg.json"
+    gs_path: "../datasets/biomedical/GS.xlsx"
+    save_splits: "../datasets/biomedical/clean/splits"
+
+  CS_KG:
+    kg_path: "../datasets/computer_science/graph/cs_kg.json"
+    gs_path: "../datasets/computer_science/GS.xlsx"
+    save_splits: "../datasets/computer_science/graph/splits"
+
+split_params:
+  n_splits: 5            # number of seeds / splits to generate
+  seeds: [0, 1, 2, 3, 4] # seeds to reproduce splits
+
+  train_ratio: 0.20
+  val_ratio: 0.05
+  test_ratio: 0.75
+
+  stratify: true         # whether to stratify splits by label
+  random_state: 42       # default global seed

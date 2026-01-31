@@ -1,0 +1,52 @@
+{
+  "split_42": {
+    "seed": 42,
+    "train_size": 103,
+    "val_size": 103,
+    "test_size": 826,
+    "index_col": "idx",
+    "label_col": "label",
+    "source_xlsx": "common_nodes.xlsx",
+    "sheet_name": "0"
+  },
+  "split_123": {
+    "seed": 123,
+    "train_size": 103,
+    "val_size": 103,
+    "test_size": 826,
+    "index_col": "idx",
+    "label_col": "label",
+    "source_xlsx": "common_nodes.xlsx",
+    "sheet_name": "0"
+  },
+  "split_456": {
+    "seed": 456,
+    "train_size": 103,
+    "val_size": 103,
+    "test_size": 826,
+    "index_col": "idx",
+    "label_col": "label",
+    "source_xlsx": "common_nodes.xlsx",
+    "sheet_name": "0"
+  },
+  "split_789": {
+    "seed": 789,
+    "train_size": 103,
+    "val_size": 103,
+    "test_size": 826,
+    "index_col": "idx",
+    "label_col": "label",
+    "source_xlsx": "common_nodes.xlsx",
+    "sheet_name": "0"
+  },
+  "split_2024": {
+    "seed": 2024,
+    "train_size": 103,
+    "val_size": 103,
+    "test_size": 826,
+    "index_col": "idx",
+    "label_col": "label",
+    "source_xlsx": "common_nodes.xlsx",
+    "sheet_name": "0"
+  }
+}

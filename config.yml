@@ -1,0 +1,104 @@
+# =======================
+# MULTI DATASETS CONFIG
+# =======================
+all_kg_names: ["GT2KG_kg", "reference_kg","KG_GEN_kg"]
+model_name_init: "sentence-transformers/all-MiniLM-L6-v2"
+common_nodes_path: "datasets/common_nodes.xlsx"
+device: "cuda"
+
+# =======================
+# SPLITS (if split_path absent)
+# =======================
+n_splits: 5
+stratify: true
+train_ratio: 0.10
+val_ratio: 0.10
+test_ratio: 0.80
+default_splits_dir: "datasets/split"
+# =======================
+# RANDOM SEEDS
+# =======================
+seeds: [42, 123, 456, 789, 2024]
+
+### Classifier
+num_classes: 8
+classifier_dropout: 0
+
+
+
+
+
+
+
+
+# =======================
+# MODEL CONFIG
+# =======================
+encoders: ["TransGCN_conv", "TransGCN_attn", "RotatEGCN_conv", "RotatEGCN_attn", "RGCN", "GAT", "GCN"]
+classifier_encoder: "TransGCN_attn"
+num_bases: 5
+num_layers: 2
+MLP_layers: []
+encoder_out_channels: [256, 256]
+message_sens: "source_to_target"
+learning_rate: 0.001
+
+# =======================
+# DATALOADER
+# =======================
+
+train_batch_size: 256
+val_batch_size: 256
+test_batch_size: 256
+shuffle: true
+num_neighbors: [200, 200]
+
+# =======================
+# TRAINING
+# =======================
+
+epochs: 100
+
+
+
+
+
+
+
+#dataset: "BioMed_noisy"   #["BioMed_noisy","BioMed_clean_KG","CS_KG"]
+#model_name_init: "sentence-transformers/all-MiniLM-L6-v2"
+##### computer sc  paths
+#kg_path : "datasets/biomedical/clean/reference_kg.json"
+#labels_path: "datasets/biomedical/GS.xlsx" #"datasets/computer_science/GS.xlsx"
+#cs_kg_path: "datasets/computer_science/graph/cs_kg.json"
+#split_path: "datasets/biomedical/clean/splits/split_1.json"
+######### bio med clean paths
+#biomed_labels_path: "datasets/biomedical/GS.xlsx"
+#biomed_clean_kg_path: "datasets/biomedical/clean/reference_kg.json"
+#biomed_clean_split_path: "datasets/biomedical/clean/splits"
+######### bio med noisy paths
+#biomed_noisy_kg_path:  "datasets/biomedical/noisy/mm_kg.json"
+#biomed_noisy_split_path:  "datasets/biomedical/noisy/splits"
+#entities_path: "BioMed_noisy_init_embd/EntitiesBertEmbedding_NCI.pickle"  #"BioMed_noisy_init_embd/EntitiesEmbedding.pickle"
+#edges_path: "BioMed_noisy_init_embd/PredicatesBertEmbedding_NCI.pickle" #"BioMed_noisy_init_embd/PredicatesEmbedding.pickle"
+##***************************************** To be removed ***************************************************
+#train_ratio: 0.20
+#val_ratio: 0.05
+#test_ratio: 0.75
+##*************************************************
+#seeds: [0,5,10,20,42]
+#encoders: ["TransGCN_conv","TransGCN_attn","RotatEGCN_conv","RotatEGCN_attn","RGCN","GAT","GCN"]
+#"device": "cuda"
+#train_batch_size: 256
+#val_batch_size: 256
+#test_batch_size: 256
+#shuffle: true
+#num_neighbors: [200, 200]
+#learning_rate: 0.001
+#num_bases: 5
+#num_layers: 2
+#MLP_layers: []
+#encoder_out_channels: [256,256]
+#message_sens: "source_to_target"
+#num_classes: 9
+#classifier_encoder: "TransGCN_attn"
