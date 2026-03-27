@@ -30,8 +30,9 @@ class GraphBERTEmbedder:
         print("Entities and Predicates Embedding using : "+ self.pretrained_model_name_or_path + "...")
         self.entities_predicates_Embedding()
         if self.output_path:
-            u.save_to_pickle(self.output_path + "/EntitiesEmbedding.pickle", self.Entites_embedding_dict)
-            u.save_to_pickle(self.output_path + "/PredicatesEmbedding.pickle", self.Predicates_embedding_dict)
+            model_short_name = self.pretrained_model_name_or_path.split("/")[-1]
+            u.save_to_pickle(self.output_path + f"/Entities_{model_short_name}.pickle", self.Entites_embedding_dict)
+            u.save_to_pickle(self.output_path + f"/Predicates_{model_short_name}.pickle", self.Predicates_embedding_dict)
             print("embeddings saved at:", self.output_path)
             print("Done")
         return self.Entites_embedding_dict, self.Predicates_embedding_dict

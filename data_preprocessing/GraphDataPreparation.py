@@ -44,16 +44,7 @@ class GraphDataPreparation:
     def build_networkx_graph(self):
         print("Building NetworkX graph")
         graph_data = u.read_json_file(self.kg_path)
-
-        if self.entities_embd_path and self.edges_embd_path:
-            entities_embeddings = u.read_pickle_file(self.entities_embd_path)
-            edge_embeddings = u.read_pickle_file(self.edges_embd_path) if self.edges_embd_path else None
-        else:
-            output_init_embeddings_path = self.dataset+"_init_embd"
-            if not os.path.exists(output_init_embeddings_path):
-                os.makedirs(output_init_embeddings_path)
-            gbe = GraphBERTEmbedder(self.kg_path, output_init_embeddings_path, self.model_name_init)
-            entities_embeddings, edge_embeddings = gbe.run()
+        entities_embeddings, edge_embeddings = self._resolve_embeddings(graph_data)
 
         # Create a NetworkX graph
         if self.is_directed:
@@ -139,44 +130,41 @@ class GraphDataPreparation:
                 cleaned_graph.append(triplet)
         return cleaned_graph
 
+    def _resolve_embeddings(self, graph_data):
+        # Priority 1: explicit paths provided
+        if self.entities_embd_path and self.edges_embd_path:
+            print(f"[INFO] Loading embeddings from explicit paths: {self.entities_embd_path}, {self.edges_embd_path}")
+            return u.read_pickle_file(self.entities_embd_path), u.read_pickle_file(self.edges_embd_path)
+
+        # Priority 2: model name provided → check cache, else embed and persist
+        if self.model_name_init and self.model_name_init != "random":
+            output_init_embeddings_path = self.dataset + "_init_embd"
+            model_short_name = self.model_name_init.split("/")[-1]
+            auto_entities_path = os.path.join(output_init_embeddings_path, f"Entities_{model_short_name}.pickle")
+            auto_edges_path = os.path.join(output_init_embeddings_path, f"Predicates_{model_short_name}.pickle")
+
+            if os.path.exists(auto_entities_path) and os.path.exists(auto_edges_path):
+                print(f"[INFO] Found cached embeddings for '{model_short_name}', loading from {output_init_embeddings_path}")
+                return u.read_pickle_file(auto_entities_path), u.read_pickle_file(auto_edges_path)
+
+            print(f"[INFO] No cached embeddings found, running GraphBERTEmbedder with '{self.model_name_init}'")
+            os.makedirs(output_init_embeddings_path, exist_ok=True)
+            gbe = GraphBERTEmbedder(self.kg_path, output_init_embeddings_path, self.model_name_init)
+            return gbe.run()
+
+        # Priority 3: no model name → random embeddings
+        print("[INFO] Using RANDOM embeddings (no model name provided)")
+        nodes = set(s["subject"] for s in graph_data) | set(s["object"] for s in graph_data)
+        predicates = sorted({entry["predicate"] for entry in graph_data})
+        return (
+            {node: torch.randn(1, self.emb_dim) for node in nodes},
+            {p: torch.randn(1, self.emb_dim) for p in predicates},
+        )
+
     def build_networkx_graph_type(self):
         print("Building NetworkX graph with unique relation type IDs")
         graph_data = u.read_json_file(self.kg_path)
-        # if self.entities_embd_path and self.edges_embd_path:
-        #     entities_embeddings = u.read_pickle_file(self.entities_embd_path)
-        #     edge_embeddings = u.read_pickle_file(self.edges_embd_path) if self.edges_embd_path else None
-        # else:
-        #     output_init_embeddings_path = self.dataset+"_init_embd"
-        #     if not os.path.exists(output_init_embeddings_path):
-        #         os.makedirs(output_init_embeddings_path)
-        #     gbe = GraphBERTEmbedder(self.kg_path, output_init_embeddings_path, self.model_name_init)
-        #     entities_embeddings, edge_embeddings = gbe.run()
-        if self.model_name_init == "random":
-            print("[INFO] Using RANDOM embeddings (model_name_init='random')")
-
-            unique_subjects = set([s["subject"] for s in graph_data])
-            unique_objects = set([s["object"] for s in graph_data])
-            predicates = sorted({entry["predicate"] for entry in graph_data})
-
-            entities_embeddings = {
-                node: torch.randn(1, self.emb_dim) for node in (unique_subjects | unique_objects)
-            }
-
-            edge_embeddings = {
-                p: torch.randn(1, self.emb_dim) for p in predicates
-            }
-
-        else:
-            # Mode normal : pickle ou GraphBERTEmbedder
-            if self.entities_embd_path and self.edges_embd_path:
-                entities_embeddings = u.read_pickle_file(self.entities_embd_path)
-                edge_embeddings = u.read_pickle_file(self.edges_embd_path)
-            else:
-                output_init_embeddings_path = self.dataset + "_init_embd"
-                if not os.path.exists(output_init_embeddings_path):
-                    os.makedirs(output_init_embeddings_path)
-                gbe = GraphBERTEmbedder(self.kg_path, output_init_embeddings_path, self.model_name_init)
-                entities_embeddings, edge_embeddings = gbe.run()
+        entities_embeddings, edge_embeddings = self._resolve_embeddings(graph_data)
 
 
 
