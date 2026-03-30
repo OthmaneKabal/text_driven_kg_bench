@@ -30,6 +30,10 @@ def main():
 
     # Embedding models to sweep — "random" uses random embeddings, any HF model name uses BERT embeddings
     init_embds = [
+        "distilbert/distilbert-base-uncased",
+        "google-bert/bert-base-cased",   
+        "allenai/scibert_scivocab_uncased",
+        "pritamdeka/S-BioBert-snli-multinli-stsb",
         "sentence-transformers/all-MiniLM-L6-v2",
         "random",
     ]
