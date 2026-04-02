@@ -23,7 +23,12 @@ class GraphDataPreparation:
     def __init__(self, kg_name,model_name_init = "sentence-transformers/all-MiniLM-L6-v2", entities_embd_path = None, edges_embd_path=None, is_directed=True, with_self_loop= False, emb_dim = 64):
         self.entities_embd_path = entities_embd_path
         self.edges_embd_path = edges_embd_path
-        self.model_name_init = model_name_init
+        if model_name_init and model_name_init.startswith("random_"):
+            self.random_embd_seed = int(model_name_init.split("_", 1)[1])
+            self.model_name_init = "random"
+        else:
+            self.random_embd_seed = 42
+            self.model_name_init = model_name_init
         self.dataset = kg_name
         self.kg_path = "datasets/"+kg_name+".json"
         self.emb_dim = emb_dim
@@ -153,12 +158,13 @@ class GraphDataPreparation:
             return gbe.run()
 
         # Priority 3: no model name → random embeddings
-        print("[INFO] Using RANDOM embeddings (no model name provided)")
-        nodes = set(s["subject"] for s in graph_data) | set(s["object"] for s in graph_data)
+        print(f"[INFO] Using RANDOM embeddings (seed={self.random_embd_seed})")
+        nodes = sorted(set(s["subject"] for s in graph_data) | set(s["object"] for s in graph_data))
         predicates = sorted({entry["predicate"] for entry in graph_data})
+        gen = torch.Generator().manual_seed(self.random_embd_seed)
         return (
-            {node: torch.randn(1, self.emb_dim) for node in nodes},
-            {p: torch.randn(1, self.emb_dim) for p in predicates},
+            {node: torch.rand(1, self.emb_dim, generator=gen) for node in nodes},
+            {p: torch.rand(1, self.emb_dim, generator=gen) for p in predicates},
         )
 
     def build_networkx_graph_type(self):

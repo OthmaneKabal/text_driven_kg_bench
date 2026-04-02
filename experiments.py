@@ -1,6 +1,8 @@
 import json
+from collections import defaultdict
 from pathlib import Path
 from datetime import datetime
+import numpy as np
 import pandas as pd
 
 from build_models import build_encoder, get_default_model_kwargs
@@ -35,7 +37,9 @@ def main():
         "allenai/scibert_scivocab_uncased",
         "pritamdeka/S-BioBert-snli-multinli-stsb",
         "sentence-transformers/all-MiniLM-L6-v2",
-        "random",
+        "random_42",
+        "random_123",
+        "random_456",
     ]
 
     # Modèles à tester + configs de sweep
@@ -196,6 +200,48 @@ def main():
     # -----------------------------
     # 4) Sauvegardes globales
     # -----------------------------
+
+    # Merge random_* summary rows into a single "random" entry per (kg_name, model_name, hidden_channels)
+    non_random_rows = [r for r in summary_rows if not r["init_embd"].startswith("random_")]
+    random_rows     = [r for r in summary_rows if r["init_embd"].startswith("random_")]
+
+    if random_rows:
+        # Pool per-seed values from all matching runs in all_results
+        metrics = ["test_acc", "test_f1", "val_f1", "best_epoch"]
+        random_values_map = defaultdict(lambda: {m: [] for m in metrics})
+        for run in all_results["runs"]:
+            if run["init_embd"].startswith("random_"):
+                key = (run["kg_name"], run["model_name"], run["hidden_channels"])
+                agg = run["results"].get("aggregated", {})
+                for m in metrics:
+                    random_values_map[key][m].extend(agg.get(m, {}).get("values", []))
+
+        seen_keys = set()
+        merged_random_rows = []
+        for r in random_rows:
+            key = (r["kg_name"], r["model_name"], r["hidden_channels"])
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            vals = random_values_map[key]
+            merged_random_rows.append({
+                "run_id":           f"{r['kg_name']}__random__{r['model_name']}__h{r['hidden_channels']}",
+                "kg_name":          r["kg_name"],
+                "init_embd":        "random",
+                "model_name":       r["model_name"],
+                "hidden_channels":  r["hidden_channels"],
+                "test_acc_mean":    float(np.mean(vals["test_acc"]))    if vals["test_acc"]    else None,
+                "test_acc_std":     float(np.std(vals["test_acc"]))     if vals["test_acc"]    else None,
+                "test_f1_mean":     float(np.mean(vals["test_f1"]))     if vals["test_f1"]     else None,
+                "test_f1_std":      float(np.std(vals["test_f1"]))      if vals["test_f1"]     else None,
+                "val_f1_mean":      float(np.mean(vals["val_f1"]))      if vals["val_f1"]      else None,
+                "val_f1_std":       float(np.std(vals["val_f1"]))       if vals["val_f1"]      else None,
+                "best_epoch_mean":  float(np.mean(vals["best_epoch"]))  if vals["best_epoch"]  else None,
+                "best_epoch_std":   float(np.std(vals["best_epoch"]))   if vals["best_epoch"]  else None,
+            })
+
+        summary_rows = non_random_rows + merged_random_rows
+
     print(f"\n[SWEEP] All {len(all_results['runs'])} runs completed. Saving global results...")
     json_path = global_dir / "all_results.json"
     with open(json_path, "w") as f:
