@@ -26,6 +26,7 @@ def main():
 
     # Liste des graphes (noms kg)
     graphs = [
+        # "REF_kg",
         "GT2KG_kg",
         "KG_GEN_kg",
     ]
@@ -42,8 +43,12 @@ def main():
         "random_456",
     ]
 
-    # Modèles à tester + configs de sweep
-    model_names = ["GCN", "RGCN", "GAT", "TransEGCN_conv", "RotatEGCN_conv", "TransEGCN_attn", "RotatEGCN_attn"]
+    # Best GNN model per knowledge graph.
+    BEST_GNN_PER_GRAPH = {
+        # "REF_kg": "RGCN",
+        "GT2KG_kg":  "RotatEGCN_attn",
+        "KG_GEN_kg": "RotatEGCN_attn",
+    }
 
     hidden_grid = [256, 64, 128]  # sweep hidden size
     out_channels = 256  # souvent = dim embedding final
@@ -85,10 +90,9 @@ def main():
     # -----------------------------
     total_graphs = len(graphs)
     total_embds = len(init_embds)
-    total_models = len(model_names)
     total_hidden = len(hidden_grid)
-    total_runs = total_graphs * total_embds * total_models * total_hidden
-    print(f"[SWEEP] {total_graphs} graph(s) x {total_embds} embedding(s) x {total_models} model(s) x {total_hidden} hidden size(s) = {total_runs} runs total")
+    total_runs = total_graphs * total_embds * total_hidden
+    print(f"[SWEEP] {total_graphs} graph(s) x {total_embds} embedding(s) x {total_hidden} hidden size(s) = {total_runs} runs total (1 best GNN per graph)")
     print(f"[SWEEP] Each run evaluated over {len(seeds)} seed(s)\n")
 
     for graph_idx, kg_name in enumerate(graphs, 1):
@@ -116,86 +120,86 @@ def main():
             print(f"# in_channels={in_channels} | num_relations={num_relations}")
             print("#" * 80)
 
-            for model_idx, model_name in enumerate(model_names, 1):
-                for hidden_channels in hidden_grid:
-                    run_id = f"{kg_name}__{embd_short}__{model_name}__h{hidden_channels}"
+            model_name = BEST_GNN_PER_GRAPH[kg_name]
+            extra_kwargs = get_default_model_kwargs(model_name)
 
-                    per_run_dir = global_dir / kg_name / embd_short / model_name / f"h{hidden_channels}"
-                    per_run_dir.mkdir(parents=True, exist_ok=True)
+            for hidden_channels in hidden_grid:
+                run_id = f"{kg_name}__{embd_short}__{model_name}__h{hidden_channels}"
 
-                    extra_kwargs = get_default_model_kwargs(model_name)
+                per_run_dir = global_dir / kg_name / embd_short / model_name / f"h{hidden_channels}"
+                per_run_dir.mkdir(parents=True, exist_ok=True)
 
-                    # factory => nouveau modèle à chaque seed
-                    def model_factory(
-                            _model_name=model_name,
-                            _in=in_channels,
-                            _h=hidden_channels,
-                            _nr=num_relations,
-                            _kwargs=extra_kwargs
-                    ):
-                        return build_encoder(
-                            model_name=_model_name,
-                            in_channels=_in,
-                            hidden_channels=_h,
-                            out_channels=_h,
-                            num_relations=_nr,
-                            **_kwargs
-                        )
-
-                    print("\n" + "=" * 80)
-                    print(f"RUN: {run_id}  [graph {graph_idx}/{total_graphs}, embd {embd_idx}/{total_embds}, model {model_idx}/{total_models}, hidden={hidden_channels}]")
-                    print(f"     in_channels={in_channels}, out_channels={hidden_channels}, num_relations={num_relations}")
-                    print(f"     extra_kwargs={extra_kwargs}")
-                    print("=" * 80)
-
-                    results = tdg.evaluate_all(
-                        kg_name=kg_name,
-                        model_factory=model_factory,
-                        init_embd=init_embd,
-                        seeds=seeds,
-                        splits_dir=splits_dir,
-                        epochs=epochs,
-                        patience=patience,
-                        lr=lr,
-                        weight_decay=weight_decay,
-                        verbose=True,
-                        save_results=True,
-                        results_dir=str(per_run_dir),
-                        run_id=run_id
+                # factory => nouveau modèle à chaque seed
+                def model_factory(
+                        _model_name=model_name,
+                        _in=in_channels,
+                        _h=hidden_channels,
+                        _nr=num_relations,
+                        _kwargs=extra_kwargs
+                ):
+                    return build_encoder(
+                        model_name=_model_name,
+                        in_channels=_in,
+                        hidden_channels=_h,
+                        out_channels=_h,
+                        num_relations=_nr,
+                        **_kwargs
                     )
 
-                    # Stockage global (JSON)
-                    all_results["runs"].append({
-                        "run_id": run_id,
-                        "kg_name": kg_name,
-                        "init_embd": init_embd,
-                        "model_name": model_name,
-                        "hidden_channels": hidden_channels,
-                        "out_channels": out_channels,
-                        "in_channels": in_channels,
-                        "num_relations": num_relations,
-                        "extra_kwargs": extra_kwargs,
-                        "results": results,
-                    })
+                print("\n" + "=" * 80)
+                print(f"RUN: {run_id}  [graph {graph_idx}/{total_graphs}, embd {embd_idx}/{total_embds}, hidden={hidden_channels}]")
+                print(f"     in_channels={in_channels}, out_channels={hidden_channels}, num_relations={num_relations}")
+                print(f"     extra_kwargs={extra_kwargs}")
+                print("=" * 80)
 
-                    # Ligne de summary (CSV)
-                    agg = results.get("aggregated", {})
-                    row = {
-                        "run_id": run_id,
-                        "kg_name": kg_name,
-                        "init_embd": init_embd,
-                        "model_name": model_name,
-                        "hidden_channels": hidden_channels,
-                        "test_acc_mean": agg.get("test_acc", {}).get("mean", None),
-                        "test_acc_std": agg.get("test_acc", {}).get("std", None),
-                        "test_f1_mean": agg.get("test_f1", {}).get("mean", None),
-                        "test_f1_std": agg.get("test_f1", {}).get("std", None),
-                        "val_f1_mean": agg.get("val_f1", {}).get("mean", None),
-                        "val_f1_std": agg.get("val_f1", {}).get("std", None),
-                        "best_epoch_mean": agg.get("best_epoch", {}).get("mean", None),
-                        "best_epoch_std": agg.get("best_epoch", {}).get("std", None),
-                    }
-                    summary_rows.append(row)
+                results = tdg.evaluate_all(
+                    kg_name=kg_name,
+                    model_factory=model_factory,
+                    init_embd=init_embd,
+                    seeds=seeds,
+                    splits_dir=splits_dir,
+                    epochs=epochs,
+                    patience=patience,
+                    lr=lr,
+                    weight_decay=weight_decay,
+                    verbose=True,
+                    save_results=True,
+                    results_dir=str(per_run_dir),
+                    run_id=run_id
+                )
+
+                # Stockage global (JSON)
+                all_results["runs"].append({
+                    "run_id": run_id,
+                    "kg_name": kg_name,
+                    "init_embd": init_embd,
+                    "model_name": model_name,
+                    "hidden_channels": hidden_channels,
+                    "out_channels": out_channels,
+                    "in_channels": in_channels,
+                    "num_relations": num_relations,
+                    "extra_kwargs": extra_kwargs,
+                    "results": results,
+                })
+
+                # Ligne de summary (CSV)
+                agg = results.get("aggregated", {})
+                row = {
+                    "run_id": run_id,
+                    "kg_name": kg_name,
+                    "init_embd": init_embd,
+                    "model_name": model_name,
+                    "hidden_channels": hidden_channels,
+                    "test_acc_mean": agg.get("test_acc", {}).get("mean", None),
+                    "test_acc_std": agg.get("test_acc", {}).get("std", None),
+                    "test_f1_mean": agg.get("test_f1", {}).get("mean", None),
+                    "test_f1_std": agg.get("test_f1", {}).get("std", None),
+                    "val_f1_mean": agg.get("val_f1", {}).get("mean", None),
+                    "val_f1_std": agg.get("val_f1", {}).get("std", None),
+                    "best_epoch_mean": agg.get("best_epoch", {}).get("mean", None),
+                    "best_epoch_std": agg.get("best_epoch", {}).get("std", None),
+                }
+                summary_rows.append(row)
 
     # -----------------------------
     # 4) Sauvegardes globales
@@ -257,7 +261,7 @@ def main():
         best = (
             df.dropna(subset=["test_f1_mean"])
             .sort_values("test_f1_mean", ascending=False)
-            .groupby(["kg_name", "init_embd", "model_name"], as_index=False)
+            .groupby(["kg_name", "init_embd"], as_index=False)
             .head(1)
         )
         best.to_csv(best_csv, index=False)
