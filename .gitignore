@@ -1,0 +1,20 @@
+# Data lourdes
+*.json
+*.jsonl
+*.pickle
+*.pkl
+*.ckpt
+*.csv
+*.xls
+*.xlsx
+*.zip
+
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# (optionnel)
+*.pub
+*.ipynb

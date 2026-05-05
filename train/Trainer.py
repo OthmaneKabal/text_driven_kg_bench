@@ -89,6 +89,22 @@ class Trainer:
     #         out = self.model(batch)
     #
     #     return out
+
+    # def _encode_pass(self, batch):
+    #     """
+    #     Retourne les embeddings du GNN encoder, avant la tête de classification.
+    #     """
+    #     if hasattr(batch, "x") and hasattr(batch, "edge_index"):
+    #         return self.model.encoder(
+    #             x=batch.x,
+    #             edge_index=batch.edge_index,
+    #             edge_type=getattr(batch, "edge_type", None),
+    #             edge_weight=getattr(batch, "edge_weight", None),
+    #             edge_attr=getattr(batch, "edge_attr", None),
+    #         )
+
+    #     return self.model.encoder(batch)
+
     def _forward_pass(self, batch):
         """
         Handle forward pass for both Data objects and separate arguments.
@@ -114,6 +130,74 @@ class Trainer:
             out = self.model(batch)
 
         return out
+
+    def _encode_pass(self, batch):
+        """
+        Forward de l'encoder seulement.
+        Retourne les embeddings avant la tête de classification.
+        """
+        if not hasattr(self.model, "encoder"):
+            raise AttributeError("Model must have .encoder attribute")
+
+        encoder = self.model.encoder
+
+        if hasattr(batch, "x") and hasattr(batch, "edge_index"):
+            x = batch.x
+            edge_index = batch.edge_index
+            edge_attr = getattr(batch, "edge_attr", None)
+            edge_type = getattr(batch, "edge_type", None)
+            edge_weight = getattr(batch, "edge_weight", None)
+
+            # 1) TransGCN / RotatEGCN souvent : forward(x, edge_index, edge_attr)
+            if edge_attr is not None:
+                try:
+                    return encoder(
+                        x=x,
+                        edge_index=edge_index,
+                        edge_attr=edge_attr,
+                    )
+                except TypeError:
+                    pass
+
+                try:
+                    return encoder(
+                        x=x,
+                        edge_index=edge_index,
+                        edge_attr=edge_attr,
+                        edge_type=edge_type,
+                    )
+                except TypeError:
+                    pass
+
+            # 2) RGCN : forward(x, edge_index, edge_type, edge_weight=None)
+            if edge_type is not None:
+                try:
+                    return encoder(
+                        x=x,
+                        edge_index=edge_index,
+                        edge_type=edge_type,
+                        edge_weight=edge_weight,
+                    )
+                except TypeError:
+                    pass
+
+            # 3) GCN classique
+            try:
+                return encoder(
+                    x=x,
+                    edge_index=edge_index,
+                    edge_weight=edge_weight,
+                )
+            except TypeError:
+                pass
+
+            # 4) Minimal
+            return encoder(
+                x=x,
+                edge_index=edge_index,
+            )
+
+        return encoder(batch)
     def _train_epoch(self, train_loader) -> float:
         """
         Train for one epoch using mini-batches.
@@ -240,7 +324,7 @@ class Trainer:
             val_loader,
             test_loader,
             epochs: int = 100,
-            patience: int = 20,
+            patience: int = 100,
             verbose: bool = True,
             eval_every: int = 1,
             save_best_model: bool = True

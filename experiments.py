@@ -26,39 +26,68 @@ def main():
 
     # Liste des graphes (noms kg)
     graphs = [
-        # "REF_kg",
-        "GT2KG_kg",
-        "KG_GEN_kg",
+        # "EDC_canonicalized_kg_v2",
+        # "EDC_canonicalized_kg_v2_augmented",
+        "reference_kg",
+        # "GT2KG_edc_canonicalized_onto_KG"
+        # "reference_kg",
+        # "GT2KG_edc_canonicalized_onto_KG",
+        # "KG_GEN_kg",
+        # "GT2KG_edc_canonicalized_KG",
+        # "GT2KG_edc_final_kg",
+        # "GT2KG_edc_canonicalized_KG_is_a_aug",
+        # "GT2KG_kg",
+        # "GT2KG_is_augmented",
+        # "GT2KG_mapped_SMN",
+        # "GT2KG_mapped_SMN_is_a_augmented",
     ]
 
     # Embedding models to sweep — "random" uses random embeddings, any HF model name uses BERT embeddings
     init_embds = [
-        "distilbert/distilbert-base-uncased",
-        "google-bert/bert-base-cased",   
-        "allenai/scibert_scivocab_uncased",
-        "pritamdeka/S-BioBert-snli-multinli-stsb",
-        "sentence-transformers/all-MiniLM-L6-v2",
-        "random_42",
-        "random_123",
-        "random_456",
+        "michiyasunaga/BioLinkBERT-base",
+        # "sentence-transformers/all-MiniLM-L6-v2",
+        # "distilbert/distilbert-base-uncased",
+        # "google-bert/bert-base-cased",   
+        # "allenai/scibert_scivocab_uncased",
+        # "pritamdeka/S-BioBert-snli-multinli-stsb",
+        # "sentence-transformers/all-MiniLM-L6-v2",
+        # "random_42",
+        # "random_123",
+        # "random_456",
     ]
 
     # Best GNN model per knowledge graph.
     BEST_GNN_PER_GRAPH = {
-        # "REF_kg": "RGCN",
-        "GT2KG_kg":  "RotatEGCN_attn",
+        # "reference_kg": "RGCN",
+        "EDC_canonicalized_kg_v2": "RotatEGCN_attn",
+        "EDC_canonicalized_kg_v2_augmented": "RotatEGCN_attn",
+        "reference_kg":"RotatEGCN_attn",
+        "GT2KG_edc_canonicalized_onto_KG":"RotatEGCN_attn",
         "KG_GEN_kg": "RotatEGCN_attn",
+        "GT2KG_edc_canonicalized_KG_is_a_aug": "RotatEGCN_attn",
+        "GT2KG_edc_final_kg": "RotatEGCN_attn",
+        "GT2KG_edc_canonicalized_KG":  "RotatEGCN_attn",
+        "GT2KG_kg":  "RotatEGCN_attn",
+        "GT2KG_is_augmented":"RotatEGCN_attn",
+        "GT2KG_mapped_SMN": "RotatEGCN_attn",
+        "GT2KG_mapped_SMN_is_a_augmented": "RotatEGCN_attn",
     }
 
-    hidden_grid = [256, 64, 128]  # sweep hidden size
+
+    
+    hidden_grid = [64, 128, 256, 384,512]  # sweep hidden size
     out_channels = 256  # souvent = dim embedding final
     epochs = 100
     patience = 100
     lr = 0.01
     weight_decay = 5e-4
 
+
     # kwargs optionnels par modèle
     # ex: num_layers, dropout, heads, num_bases, etc.
+
+
+
 
 
     # -----------------------------

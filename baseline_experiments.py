@@ -11,11 +11,12 @@ import torch.nn as nn
 from tdg_bench import TDGBench
 
 
-# ---------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # Baseline encoder — swap this class to test other encoders.
 # Currently: pure identity, no learned parameters.
 # The only trainable component is the linear classifier in StandardClassifier.
-# ---------------------------------------------------------------------
+# -------------------------------------------------------------------------------
+
 class IdentityEncoder(nn.Module):
     """Returns embeddings unchanged. Swap to test learned projections."""
     def __init__(self, in_channels):
@@ -38,11 +39,12 @@ def main():
     kg_name = "GT2KG_kg"
 
     init_embds = [
-        "distilbert/distilbert-base-uncased",
-        "google-bert/bert-base-cased",
-        "allenai/scibert_scivocab_uncased",
-        "pritamdeka/S-BioBert-snli-multinli-stsb",
         "sentence-transformers/all-MiniLM-L6-v2",
+        # "distilbert/distilbert-base-uncased",
+        # "google-bert/bert-base-cased",
+        # "allenai/scibert_scivocab_uncased",
+        # "pritamdeka/S-BioBert-snli-multinli-stsb",
+        # "sentence-transformers/all-MiniLM-L6-v2",
         "random_42",
         "random_123",
         "random_456",

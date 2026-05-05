@@ -20,7 +20,7 @@ from torch_geometric.utils import to_undirected
 
 
 class GraphDataPreparation:
-    def __init__(self, kg_name,model_name_init = "sentence-transformers/all-MiniLM-L6-v2", entities_embd_path = None, edges_embd_path=None, is_directed=True, with_self_loop= False, emb_dim = 64):
+    def __init__(self, kg_name,model_name_init = "sentence-transformers/all-MiniLM-L6-v2", entities_embd_path = None, edges_embd_path=None, is_directed=True, with_self_loop= False, emb_dim = 256):
         self.entities_embd_path = entities_embd_path
         self.edges_embd_path = edges_embd_path
         if model_name_init and model_name_init.startswith("random_"):
