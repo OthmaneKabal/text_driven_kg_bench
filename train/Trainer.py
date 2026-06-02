@@ -4,6 +4,7 @@ import torch.optim as optim
 import pandas as pd
 from sklearn.metrics import accuracy_score, recall_score, f1_score, precision_score
 from typing import Optional, Dict
+from pathlib import Path
 
 
 class Trainer:
@@ -302,11 +303,17 @@ class Trainer:
         if save_predictions and save_path:
             terms = [decode_indexes_fn(id) for id in node_ids] if decode_indexes_fn else node_ids
             df = pd.DataFrame({
+                "node_id": node_ids,
                 "term": terms,
                 "label": decoded_true,
                 "predictions": decoded_pred
             })
-            df.to_excel(save_path, index=False)
+            save_path = Path(save_path)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            if save_path.suffix.lower() == ".csv":
+                df.to_csv(save_path, index=False)
+            else:
+                df.to_excel(save_path, index=False)
             print(f"Predictions for '{split}' saved to {save_path}")
 
         # Compute metrics
@@ -327,7 +334,12 @@ class Trainer:
             patience: int = 100,
             verbose: bool = True,
             eval_every: int = 1,
-            save_best_model: bool = True
+            save_best_model: bool = True,
+            artifacts_dir: Optional[str] = None,
+            artifact_prefix: str = "run",
+            label_encoder=None,
+            decode_indexes_fn=None,
+            save_prediction_splits: Optional[list] = None,
     ) -> Dict[str, Dict[str, float]]:
         """
         Full training loop with early stopping.
@@ -341,11 +353,18 @@ class Trainer:
         - verbose: Print training progress
         - eval_every: Evaluate every N epochs
         - save_best_model: Keep best model state
+        - artifacts_dir: Optional directory where the best checkpoint and predictions are saved
+        - artifact_prefix: Prefix used for saved artifact filenames
+        - save_prediction_splits: Splits to save predictions for after reloading the best model
 
         Returns:
         - Dictionary with best validation and final test metrics
         """
         patience_counter = 0
+        artifact_paths = {}
+
+        if save_prediction_splits is None:
+            save_prediction_splits = ["test"]
 
         if verbose:
             print("Starting training...")
@@ -409,13 +428,62 @@ class Trainer:
         else:
             final_test_metrics = test_metrics
 
+        if artifacts_dir is not None:
+            artifacts_path = Path(artifacts_dir)
+            artifacts_path.mkdir(parents=True, exist_ok=True)
+
+            model_path = artifacts_path / f"{artifact_prefix}_best_model.pt"
+            torch.save(
+                {
+                    "model_state_dict": self.model.state_dict(),
+                    "best_val_f1": self.best_val_f1,
+                    "best_epoch": self.best_epoch,
+                    "lr": self.lr,
+                    "weight_decay": self.weight_decay,
+                },
+                model_path,
+            )
+            artifact_paths["best_model"] = str(model_path)
+            print(f"Best model saved to {model_path}")
+
+            loaders_by_split = {
+                "train": train_loader,
+                "val": val_loader,
+                "test": test_loader,
+            }
+
+            prediction_paths = {}
+            for split_name in save_prediction_splits:
+                if split_name not in loaders_by_split:
+                    raise ValueError(
+                        f"Unknown prediction split '{split_name}'. "
+                        "Supported values are 'train', 'val', and 'test'."
+                    )
+
+                pred_path = artifacts_path / f"{artifact_prefix}_best_{split_name}_predictions.csv"
+                split_metrics = self._evaluate_split(
+                    loaders_by_split[split_name],
+                    split_name,
+                    save_predictions=True,
+                    save_path=str(pred_path),
+                    label_encoder=label_encoder,
+                    decode_indexes_fn=decode_indexes_fn,
+                )
+                prediction_paths[split_name] = str(pred_path)
+
+                if split_name == "test":
+                    final_test_metrics = split_metrics
+
+            artifact_paths["predictions"] = prediction_paths
+
         return {
             'best_val': {
                 'f1': self.best_val_f1,
                 'epoch': self.best_epoch
             },
             'final_test': final_test_metrics,
-            'history': self.history
+            'history': self.history,
+            'artifacts': artifact_paths,
         }
 
     def evaluate(

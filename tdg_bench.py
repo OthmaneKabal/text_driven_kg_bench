@@ -1113,6 +1113,9 @@ class TDGBench:
         lr: float = 0.01,
         weight_decay: float = 5e-4,
         verbose: bool = True,
+        artifacts_dir: Optional[str] = None,
+        artifact_prefix: str = "run",
+        save_prediction_splits: Optional[List[str]] = None,
     ) -> Dict:
 
         annotated_graph, train_loader, val_loader, test_loader, gdp = self.get_data(
@@ -1142,6 +1145,9 @@ class TDGBench:
             optimizer_type="adam",
         )
 
+        index_to_term = gdp.decode_indexes()
+        decode_indexes_fn = lambda node_id: index_to_term.get(int(node_id), int(node_id))
+
         return trainer.train(
             train_loader=train_loader,
             val_loader=val_loader,
@@ -1149,6 +1155,11 @@ class TDGBench:
             epochs=epochs,
             patience=patience,
             verbose=verbose,
+            artifacts_dir=artifacts_dir,
+            artifact_prefix=artifact_prefix,
+            label_encoder=gdp.label_encoder,
+            decode_indexes_fn=decode_indexes_fn,
+            save_prediction_splits=save_prediction_splits,
         )
 
     # ------------------------------------------------------------------
@@ -1357,6 +1368,9 @@ class TDGBench:
             print(f"{'=' * 70}")
 
             split_path = f"{splits_dir}/split_{seed}.json"
+            seed_artifacts_dir = str(Path(results_dir) / "artifacts" / f"seed_{seed}")
+            seed_artifact_prefix = run_id if run_id else f"{kg_name}_{init_embd.replace('/', '_')}"
+            seed_artifact_prefix = f"{seed_artifact_prefix}_seed{seed}"
 
             try:
                 if onto_incorporation == "align":
@@ -1396,6 +1410,9 @@ class TDGBench:
                         lr=lr,
                         weight_decay=weight_decay,
                         verbose=verbose,
+                        artifacts_dir=seed_artifacts_dir,
+                        artifact_prefix=seed_artifact_prefix,
+                        save_prediction_splits=["test"],
                     )
 
                 seed_result = {
@@ -1409,6 +1426,7 @@ class TDGBench:
                     "lambda_align": lambda_align if onto_incorporation == "align" else None,
                     "alignment_mode": alignment_mode if onto_incorporation == "align" else None,
                     "temperature": temperature if onto_incorporation == "align" else None,
+                    "artifacts": results.get("artifacts", {}),
                 }
 
                 all_results["per_seed"].append(seed_result)
@@ -1516,6 +1534,10 @@ class TDGBench:
                         "test_acc": seed_result["final_test"]["accuracy"],
                         "test_f1": seed_result["final_test"]["f1"],
                         "best_epoch": seed_result["best_epoch"],
+                        "best_model_path": seed_result["artifacts"].get("best_model"),
+                        "test_predictions_path": seed_result["artifacts"]
+                        .get("predictions", {})
+                        .get("test"),
                     }
                 )
 

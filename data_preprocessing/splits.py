@@ -1,5 +1,6 @@
 import os
 import json
+import argparse
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -58,18 +59,28 @@ def generate_and_save_splits(
                 label_col = c
                 break
 
-    if index_col is None or label_col is None:
+    if label_col is None:
         raise ValueError(
             "Impossible de détecter automatiquement les colonnes.\n"
             f"Colonnes disponibles: {list(df.columns)}\n"
-            "Passe explicitement index_col=... et label_col=... (ex: index_col='gs_idx', label_col='label')."
+            "Passe explicitement label_col=... (ex: label_col='label')."
         )
 
-    sub = df[[index_col, label_col]].copy()
-    sub = sub.dropna(subset=[index_col, label_col])
+    if index_col is None:
+        print("[INFO] Aucune colonne d'index detectee: utilisation de l'index de ligne du GS.")
+        sub = df[[label_col]].copy()
+        sub = sub.dropna(subset=[label_col])
+        index_col_for_summary = "__row_index__"
+    else:
+        sub = df[[index_col, label_col]].copy()
+        sub = sub.dropna(subset=[index_col, label_col])
+        index_col_for_summary = index_col
 
     # indices (GS) et labels alignés
-    gs_indices = sub[index_col].astype(int).tolist()
+    if index_col is None:
+        gs_indices = sub.index.astype(int).tolist()
+    else:
+        gs_indices = sub[index_col].astype(int).tolist()
     labels = sub[label_col].tolist()
 
     if len(gs_indices) == 0:
@@ -131,14 +142,14 @@ def generate_and_save_splits(
             "train_size": int(len(gs_train)),
             "val_size": int(len(gs_val)),
             "test_size": int(len(gs_test)),
-            "index_col": index_col,
+            "index_col": index_col_for_summary,
             "label_col": label_col,
             "source_xlsx": os.path.basename(xlsx_path),
             "sheet_name": str(sheet_name),
         }
 
         print(
-            f"[INFO] Split {split_id} (seed={seed}) → "
+            f"[INFO] Split {split_id} (seed={seed}) -> "
             f"Train: {len(gs_train)}, Val: {len(gs_val)}, Test: {len(gs_test)}"
         )
 
@@ -147,4 +158,63 @@ def generate_and_save_splits(
 
     print(f"[INFO] {len(seeds)} splits sauvegardés dans {save_dir}")
     return splits_summary
+
+
+def _parse_seeds(seeds_text: str | None):
+    if seeds_text is None or seeds_text.strip() == "":
+        return None
+
+    return [int(seed.strip()) for seed in seeds_text.split(",") if seed.strip()]
+
+
+def _parse_sheet_name(sheet_name):
+    if isinstance(sheet_name, int):
+        return sheet_name
+    return int(sheet_name) if str(sheet_name).isdigit() else sheet_name
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Generate reproducible train/val/test splits from a GS Excel file."
+    )
+    parser.add_argument("--xlsx-path", required=True, help="Path to the GS .xlsx file.")
+    parser.add_argument("--save-dir", required=True, help="Directory where splits will be saved.")
+    parser.add_argument(
+        "--seeds",
+        default=None,
+        help="Comma-separated seeds, for example: 42,123,456,789,2024.",
+    )
+    parser.add_argument("--n-splits", type=int, default=5)
+    parser.add_argument("--train-ratio", type=float, default=0.20)
+    parser.add_argument("--val-ratio", type=float, default=0.05)
+    parser.add_argument("--test-ratio", type=float, default=0.75)
+    parser.add_argument("--sheet-name", default=0)
+    parser.add_argument("--index-col", default=None)
+    parser.add_argument("--label-col", default=None)
+    parser.add_argument(
+        "--no-stratify",
+        action="store_true",
+        help="Disable label stratification.",
+    )
+
+    args = parser.parse_args()
+    seeds = _parse_seeds(args.seeds)
+
+    generate_and_save_splits(
+        xlsx_path=args.xlsx_path,
+        save_dir=args.save_dir,
+        n_splits=args.n_splits,
+        seeds=seeds,
+        train_ratio=args.train_ratio,
+        val_ratio=args.val_ratio,
+        test_ratio=args.test_ratio,
+        stratify=not args.no_stratify,
+        sheet_name=_parse_sheet_name(args.sheet_name),
+        index_col=args.index_col,
+        label_col=args.label_col,
+    )
+
+
+if __name__ == "__main__":
+    main()
 

@@ -25,7 +25,7 @@ def get_data_and_loaders(
     train_batch_size: int = 512,
     val_batch_size: int = 512,
     test_batch_size: int = 512,
-    shuffle: bool = True,
+    shuffle: bool = False,
     is_directed: bool = True,
     use_cache: bool = True,
     random_embd_dim = 256

@@ -9,26 +9,18 @@ from build_models import build_encoder, get_default_model_kwargs
 from tdg_bench import TDGBench
 
 
-# ---------------------------------------------------------------------
-# A FOURNIR PAR TOI :
-# build_encoder(model_name, in_channels, hidden_channels, out_channels, num_relations, **kwargs)
-# -> retourne un encoder torch.nn.Module (GCNEncoder / RGCNEncoder / GATEncoder / etc.)
-# ---------------------------------------------------------------------
-#
-
-
 def main():
     # -----------------------------
     # 1) Paramètres du sweep
     # -----------------------------
-    seeds = [42, 123, 456, 789, 2024]
-    splits_dir = "datasets/split"
+    seeds = [42,123]
+    splits_dir = "datasets/splits/umls_kg_splits"
 
     # Liste des graphes (noms kg)
     graphs = [
         # "EDC_canonicalized_kg_v2",
         # "EDC_canonicalized_kg_v2_augmented",
-        "reference_kg",
+        # "reference_kg",
         # "GT2KG_edc_canonicalized_onto_KG"
         # "reference_kg",
         # "GT2KG_edc_canonicalized_onto_KG",
@@ -36,7 +28,7 @@ def main():
         # "GT2KG_edc_canonicalized_KG",
         # "GT2KG_edc_final_kg",
         # "GT2KG_edc_canonicalized_KG_is_a_aug",
-        # "GT2KG_kg",
+        "GT2KG_kg",
         # "GT2KG_is_augmented",
         # "GT2KG_mapped_SMN",
         # "GT2KG_mapped_SMN_is_a_augmented",
@@ -75,7 +67,7 @@ def main():
 
 
     
-    hidden_grid = [64, 128, 256, 384,512]  # sweep hidden size
+    hidden_grid = [64,128]  # sweep hidden size
     out_channels = 256  # souvent = dim embedding final
     epochs = 100
     patience = 100

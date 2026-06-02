@@ -143,7 +143,10 @@ class GraphDataPreparation:
 
         # Priority 2: model name provided → check cache, else embed and persist
         if self.model_name_init and self.model_name_init != "random":
-            output_init_embeddings_path = self.dataset + "_init_embd"
+            output_init_embeddings_path = os.path.join(
+                "embeddings_init",
+                self.dataset + "_init_embd",
+            )
             model_short_name = self.model_name_init.split("/")[-1]
             auto_entities_path = os.path.join(output_init_embeddings_path, f"Entities_{model_short_name}.pickle")
             auto_edges_path = os.path.join(output_init_embeddings_path, f"Predicates_{model_short_name}.pickle")
