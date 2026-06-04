@@ -13,8 +13,9 @@ def main():
     # -----------------------------
     # 1) Paramètres du sweep
     # -----------------------------
-    seeds = [42,123]
-    splits_dir = "datasets/splits/umls_kg_splits"
+    seeds = [42]
+    splits_dir = "datasets/splits/dbpedia_174_splits"
+    common_nodes_path = "datasets/GS_dbpedia_174.xlsx"
 
     # Liste des graphes (noms kg)
     graphs = [
@@ -28,7 +29,8 @@ def main():
         # "GT2KG_edc_canonicalized_KG",
         # "GT2KG_edc_final_kg",
         # "GT2KG_edc_canonicalized_KG_is_a_aug",
-        "GT2KG_kg",
+        # "GT2KG_kg",
+        "DBpedia_174_clean_kg",
         # "GT2KG_is_augmented",
         # "GT2KG_mapped_SMN",
         # "GT2KG_mapped_SMN_is_a_augmented",
@@ -36,8 +38,8 @@ def main():
 
     # Embedding models to sweep — "random" uses random embeddings, any HF model name uses BERT embeddings
     init_embds = [
-        "michiyasunaga/BioLinkBERT-base",
-        # "sentence-transformers/all-MiniLM-L6-v2",
+        # "michiyasunaga/BioLinkBERT-base",
+        "sentence-transformers/all-MiniLM-L6-v2",
         # "distilbert/distilbert-base-uncased",
         # "google-bert/bert-base-cased",   
         # "allenai/scibert_scivocab_uncased",
@@ -63,11 +65,12 @@ def main():
         "GT2KG_is_augmented":"RotatEGCN_attn",
         "GT2KG_mapped_SMN": "RotatEGCN_attn",
         "GT2KG_mapped_SMN_is_a_augmented": "RotatEGCN_attn",
+        "DBpedia_174_clean_kg": "RotatEGCN_attn",
     }
 
 
     
-    hidden_grid = [64,128]  # sweep hidden size
+    hidden_grid = [64]  # sweep hidden size
     out_channels = 256  # souvent = dim embedding final
     epochs = 100
     patience = 100
@@ -122,6 +125,7 @@ def main():
 
             print(f"\n[GRAPH {graph_idx}/{total_graphs}] [{embd_idx}/{total_embds}] Loading graph: {kg_name} | embd: {embd_short}")
             tdg = TDGBench(use_classifier=True)
+            tdg.config["common_nodes_path"] = common_nodes_path
 
             # Charger une fois pour récupérer dimensions
             print(f"[GRAPH {graph_idx}/{total_graphs}] Building graph and loading split {seeds[0]}...")
@@ -288,7 +292,7 @@ def main():
         best.to_csv(best_csv, index=False)
 
     print("\n" + "#" * 80)
-    print("SWEEP DONE ✅")
+    print("SWEEP DONE")
     print(f"Global JSON : {json_path}")
     print(f"Summary CSV : {csv_path}")
     if best_csv.exists():

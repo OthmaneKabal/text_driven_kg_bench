@@ -219,8 +219,17 @@ class Trainer:
             # Compute loss only on input nodes in training set
             mask_input_id = torch.isin(batch.n_id, batch.input_id)
             mask = mask_input_id & batch.train_mask & (batch.y >= 0)
+            targets = batch.y[mask]
+            if targets.numel() == 0:
+                continue
+            if targets.max().item() >= out.size(1):
+                raise ValueError(
+                    "Found a target label outside the classifier output range: "
+                    f"max_label={targets.max().item()}, num_classes={out.size(1)}. "
+                    "Check config['num_classes'] or the labels in the GS file."
+                )
 
-            loss = self.criterion(out[mask], batch.y[mask])
+            loss = self.criterion(out[mask], targets)
 
             # Backward pass
             loss.backward()

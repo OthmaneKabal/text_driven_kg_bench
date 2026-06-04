@@ -1125,12 +1125,15 @@ class TDGBench:
             entities_embd_path=entities_embd_path,
             edges_embd_path=edges_embd_path,
         )
+        if hasattr(annotated_graph, "num_classes"):
+            self.config["num_classes"] = int(annotated_graph.num_classes)
 
         if verbose:
             print(f"\n{'=' * 70}")
             print("Normal evaluation")
             print(f"Split : {split_path}")
             print(f"KG    : {kg_name}")
+            print(f"Classes: {self.config['num_classes']}")
             print(f"Graph : {annotated_graph}")
             print(f"{'=' * 70}\n")
 
@@ -1203,6 +1206,8 @@ class TDGBench:
             entities_embd_path=kg_entities_embd_path,
             edges_embd_path=kg_edges_embd_path,
         )
+        if hasattr(annotated_graph, "num_classes"):
+            self.config["num_classes"] = int(annotated_graph.num_classes)
 
         gdp_onto = GraphDataPreparation(
             kg_name=onto_name,
