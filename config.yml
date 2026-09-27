@@ -9,7 +9,7 @@ device: "cuda"
 # =======================
 # SPLITS (if split_path absent)
 # =======================
-n_splits: 5
+n_splits: 10
 stratify: true
 train_ratio: 0.10
 val_ratio: 0.10
@@ -18,7 +18,7 @@ default_splits_dir: "datasets/split"
 # =======================
 # RANDOM SEEDS
 # =======================
-seeds: [42, 123, 456, 789, 2024]
+seeds: [42, 123, 456, 789, 2024, 2025, 2026, 2027, 2028, 2029]
 
 ### Classifier
 num_classes: 8

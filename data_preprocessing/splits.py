@@ -6,6 +6,10 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 
+# The ten default benchmark splits.  Split files use their seed in the name.
+PREGENERATED_SPLIT_SEEDS = (42, 123, 456, 789, 2024, 2025, 2026, 2027, 2028, 2029)
+
+
 def generate_and_save_splits(
     xlsx_path: str,
     save_dir: str,
@@ -95,7 +99,14 @@ def generate_and_save_splits(
         if len(seeds) != n_splits:
             n_splits = len(seeds)
 
-    splits_summary = {}
+    summary_path = os.path.join(save_dir, "splits_summary.json")
+    if os.path.exists(summary_path):
+        with open(summary_path, "r", encoding="utf-8") as f:
+            splits_summary = json.load(f)
+        if not isinstance(splits_summary, dict):
+            raise ValueError(f"{summary_path} must contain a JSON object")
+    else:
+        splits_summary = {}
 
     for split_id, seed in enumerate(seeds):
         # Stratify only if meaningful
@@ -153,7 +164,7 @@ def generate_and_save_splits(
             f"Train: {len(gs_train)}, Val: {len(gs_val)}, Test: {len(gs_test)}"
         )
 
-    with open(os.path.join(save_dir, "splits_summary.json"), "w", encoding="utf-8") as f:
+    with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(splits_summary, f, indent=2)
 
     print(f"[INFO] {len(seeds)} splits sauvegardés dans {save_dir}")

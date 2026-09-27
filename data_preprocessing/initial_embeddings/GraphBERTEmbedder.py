@@ -10,10 +10,10 @@ warnings.filterwarnings("ignore")
 from tqdm import tqdm
 
 class GraphBERTEmbedder:
-    def __init__(self, KG_path, output_path, pretrained_model_name_or_path):
+    def __init__(self, KG_path, output_path, pretrained_model_name_or_path, graph_records=None):
         self.pretrained_model_name_or_path = pretrained_model_name_or_path
         self.bertModel = bem.BertEmbedder(self.pretrained_model_name_or_path)
-        self.KG = u.read_json_file(KG_path)
+        self.KG = graph_records if graph_records is not None else u.read_json_file(KG_path)
         ## directory path for the outputs
         self.output_path = output_path
         self.Entites_embedding_dict = {} ## result initialisation
