@@ -1,7 +1,9 @@
 # Generated graph data and experiment artefacts
 embeddings_init/
 results/
-datasets/UMLS-NCI/
+# Keep only the small inverse-relation resolver needed to reproduce graph variants.
+datasets/UMLS-NCI/*
+!datasets/UMLS-NCI/rela_inverse_resolver.xlsx
 datasets/UMLS_nci_kg*.json
 datasets/*scale_matched*.json
 datasets/semantic_type_integrations/
@@ -20,6 +22,9 @@ datasets/split/*.npy
 *.xls
 *.xlsx
 *.zip
+
+# Exception to the generic Excel rule above: needed for UMLS inverse filtering.
+!datasets/UMLS-NCI/rela_inverse_resolver.xlsx
 
 # Small, redistributable TDG benchmark inputs.
 !datasets/GT2KG_kg.json
