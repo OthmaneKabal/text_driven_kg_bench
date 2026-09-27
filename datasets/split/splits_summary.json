@@ -48,5 +48,55 @@
     "label_col": "label",
     "source_xlsx": "common_nodes.xlsx",
     "sheet_name": "0"
+  },
+  "split_2025": {
+    "seed": 2025,
+    "train_size": 103,
+    "val_size": 103,
+    "test_size": 826,
+    "index_col": "idx",
+    "label_col": "label",
+    "source_xlsx": "common_nodes.xlsx",
+    "sheet_name": "0"
+  },
+  "split_2026": {
+    "seed": 2026,
+    "train_size": 103,
+    "val_size": 103,
+    "test_size": 826,
+    "index_col": "idx",
+    "label_col": "label",
+    "source_xlsx": "common_nodes.xlsx",
+    "sheet_name": "0"
+  },
+  "split_2027": {
+    "seed": 2027,
+    "train_size": 103,
+    "val_size": 103,
+    "test_size": 826,
+    "index_col": "idx",
+    "label_col": "label",
+    "source_xlsx": "common_nodes.xlsx",
+    "sheet_name": "0"
+  },
+  "split_2028": {
+    "seed": 2028,
+    "train_size": 103,
+    "val_size": 103,
+    "test_size": 826,
+    "index_col": "idx",
+    "label_col": "label",
+    "source_xlsx": "common_nodes.xlsx",
+    "sheet_name": "0"
+  },
+  "split_2029": {
+    "seed": 2029,
+    "train_size": 103,
+    "val_size": 103,
+    "test_size": 826,
+    "index_col": "idx",
+    "label_col": "label",
+    "source_xlsx": "common_nodes.xlsx",
+    "sheet_name": "0"
   }
 }

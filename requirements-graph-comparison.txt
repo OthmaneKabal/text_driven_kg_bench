@@ -1,0 +1,4 @@
+# Local graph-comparison web interface. Flask 3 is compatible with
+# Werkzeug 3, which is used by the MC2GAE environment.
+Flask>=3.0,<4
+ijson==3.3.0

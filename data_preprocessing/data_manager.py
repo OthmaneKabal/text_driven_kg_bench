@@ -28,7 +28,8 @@ def get_data_and_loaders(
     shuffle: bool = False,
     is_directed: bool = True,
     use_cache: bool = True,
-    random_embd_dim = 256
+    random_embd_dim = 256,
+    graph_records=None,
 ):
     if use_cache and "annotated_graph" in _cached:
         return (
@@ -48,7 +49,8 @@ def get_data_and_loaders(
         entities_embd_path=entities_embd_path,
         edges_embd_path=edges_embd_path,
         is_directed=is_directed,
-        emb_dim = random_embd_dim
+        emb_dim = random_embd_dim,
+        graph_records=graph_records,
     )
 
     data = gdp.prepare_graph_with_type_label(common_nodes_path)

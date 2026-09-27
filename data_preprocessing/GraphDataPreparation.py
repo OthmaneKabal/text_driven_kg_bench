@@ -20,7 +20,7 @@ from torch_geometric.utils import to_undirected
 
 
 class GraphDataPreparation:
-    def __init__(self, kg_name,model_name_init = "sentence-transformers/all-MiniLM-L6-v2", entities_embd_path = None, edges_embd_path=None, is_directed=True, with_self_loop= False, emb_dim = 256):
+    def __init__(self, kg_name,model_name_init = "sentence-transformers/all-MiniLM-L6-v2", entities_embd_path = None, edges_embd_path=None, is_directed=True, with_self_loop= False, emb_dim = 256, graph_records=None):
         self.entities_embd_path = entities_embd_path
         self.edges_embd_path = edges_embd_path
         if model_name_init and model_name_init.startswith("random_"):
@@ -31,6 +31,7 @@ class GraphDataPreparation:
             self.model_name_init = model_name_init
         self.dataset = kg_name
         self.kg_path = "datasets/"+kg_name+".json"
+        self.graph_records = graph_records
         self.emb_dim = emb_dim
         self.built_graph = None
         self.nxGraph = None
@@ -42,13 +43,19 @@ class GraphDataPreparation:
         self.gs_to_graph = None
         self.graph_to_gs = None
 
+    def _load_graph_data(self):
+        """Load the named JSON graph or use records supplied by TDGBench."""
+        if self.graph_records is not None:
+            return self.graph_records
+        return u.read_json_file(self.kg_path)
+
     def decode_indexes(self):
         inverted_dict = {value: key for key, value in self.nodes_index.items()}
         return inverted_dict
 
     def build_networkx_graph(self):
         print("Building NetworkX graph")
-        graph_data = u.read_json_file(self.kg_path)
+        graph_data = self._load_graph_data()
         entities_embeddings, edge_embeddings = self._resolve_embeddings(graph_data)
 
         # Create a NetworkX graph
@@ -152,12 +159,32 @@ class GraphDataPreparation:
             auto_edges_path = os.path.join(output_init_embeddings_path, f"Predicates_{model_short_name}.pickle")
 
             if os.path.exists(auto_entities_path) and os.path.exists(auto_edges_path):
-                print(f"[INFO] Found cached embeddings for '{model_short_name}', loading from {output_init_embeddings_path}")
-                return u.read_pickle_file(auto_entities_path), u.read_pickle_file(auto_edges_path)
+                cached_entities = u.read_pickle_file(auto_entities_path)
+                cached_predicates = u.read_pickle_file(auto_edges_path)
+                expected_entities = {
+                    entry[endpoint]
+                    for entry in graph_data
+                    for endpoint in ("subject", "object")
+                }
+                expected_predicates = {entry["predicate"] for entry in graph_data}
+                missing_entities = expected_entities - set(cached_entities)
+                missing_predicates = expected_predicates - set(cached_predicates)
+                if not missing_entities and not missing_predicates:
+                    print(f"[INFO] Found cached embeddings for '{model_short_name}', loading from {output_init_embeddings_path}")
+                    return cached_entities, cached_predicates
+                print(
+                    f"[INFO] Cached embeddings are incomplete for the current graph "
+                    f"({len(missing_entities)} entity and {len(missing_predicates)} predicate embedding(s) missing); rebuilding."
+                )
 
             print(f"[INFO] No cached embeddings found, running GraphBERTEmbedder with '{self.model_name_init}'")
             os.makedirs(output_init_embeddings_path, exist_ok=True)
-            gbe = GraphBERTEmbedder(self.kg_path, output_init_embeddings_path, self.model_name_init)
+            gbe = GraphBERTEmbedder(
+                self.kg_path,
+                output_init_embeddings_path,
+                self.model_name_init,
+                graph_records=graph_data,
+            )
             return gbe.run()
 
         # Priority 3: no model name → random embeddings
@@ -172,7 +199,7 @@ class GraphDataPreparation:
 
     def build_networkx_graph_type(self):
         print("Building NetworkX graph with unique relation type IDs")
-        graph_data = u.read_json_file(self.kg_path)
+        graph_data = self._load_graph_data()
         entities_embeddings, edge_embeddings = self._resolve_embeddings(graph_data)
 
 

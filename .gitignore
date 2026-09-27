@@ -1,20 +1,43 @@
-# Data lourdes
+# Generated graph data and experiment artefacts
+embeddings_init/
+results/
+datasets/UMLS-NCI/
+datasets/UMLS_nci_kg*.json
+datasets/*scale_matched*.json
+datasets/semantic_type_integrations/
+datasets/get_without_50_reverse_ing/
+datasets/archive/
+datasets/split/*.npy
+
+# Large or generated serialisations are ignored by default.
 *.json
 *.jsonl
 *.pickle
 *.pkl
+*.pt
 *.ckpt
 *.csv
 *.xls
 *.xlsx
 *.zip
 
+# Small, redistributable TDG benchmark inputs.
+!datasets/GT2KG_kg.json
+!datasets/GT2KG_kg_raw.json
+!datasets/KG_GEN_kg.json
+!datasets/KG_GEN_kg_raw.json
+!datasets/common_nodes.xlsx
+!datasets/split/split_*.json
+!datasets/semantic_type_integrations/
+!datasets/semantic_type_integrations/umls_nci_clean_1pct_common_terms.json
+
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # Jupyter
 .ipynb_checkpoints/
-
-# (optionnel)
-*.pub
 *.ipynb
+
+# Optional local keys
+*.pub

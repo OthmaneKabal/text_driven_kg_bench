@@ -1,0 +1,58 @@
+% Requires: \usepackage{algorithm}
+%           \usepackage{algpseudocode}
+%           \usepackage{amsmath}
+%
+% Anchor-guided Frontier Sampling used to construct the scale-matched
+% UMLS--NCI clean reference graph.
+\begin{algorithm}[t]
+\caption{Anchor-guided frontier sampling for a scale-matched clean graph}
+\label{alg:anchor-guided-frontier-sampling}
+\begin{algorithmic}[1]
+\Require Clean graph $G=(V,E)$; target graph $T$; common concepts $C$;
+semantic-type integration records $S$; number of candidates $K$; number of
+walkers $w$; random seed $s$
+\Ensure Connected sampled graph $G^\star$
+\State $A \gets (C \cup \{\textit{normalized\_term},\textit{semantic\_type}\mid r\in S\}) \cap V$
+\State $n \gets |V(T)|$
+\State $m \gets \operatorname{round}\left(n\,|E|/|V|\right)$
+\Comment{preserve the clean mean degree}
+\State $a_0 \gets \arg\max_{a\in A} \deg_G(a)$
+\State $P \gets \operatorname{BFS\text{-}tree}(G,a_0)$
+\State $\mathcal{D}_{G} \gets \operatorname{profile}(G)$
+\Comment{degree, components, predicates, and semantic types}
+\For{$i \gets 0$ to $K-1$}
+    \State Initialize pseudorandom generator with seed $s+i$
+    \State $R \gets$ one reservoir-sampled real triple for every predicate in $E$
+    \State $R \gets R \cup \{e\in E \mid e.\textit{synthetic}=\texttt{true}\ \land\ e.\textit{predicate}=\texttt{isa}\}$
+    \State $M \gets A \cup \{u,v \mid (u,p,v)\in R\}$
+    \State $(V_i,E_i^{\mathrm{tree}}) \gets \operatorname{ConnectToRoot}(M,a_0,P)$
+    \Comment{add each BFS path from $M$ to $a_0$}
+    \State $F \gets$ up to $w$ traversable nodes sampled from $V_i$
+    \While{$|V_i|<n$}
+        \State choose $x\in F$ with probability proportional to $\deg_G(x)$
+        \State choose uniformly an adjacent edge $(x,y)\in E$
+        \State replace $x$ by $y$ in $F$; add $y$ to $V_i$
+        \If{the frontier has stalled}
+            \State choose a boundary edge $(u,v)$ with $u\in V_i$ and $v\notin V_i$
+            \State add $v$ to $V_i$ and replace one walker by $v$
+        \EndIf
+    \EndWhile
+    \State $Q_i \gets \{e=(u,p,v)\in E \mid u,v\in V_i\}$
+    \State $H_i \gets E_i^{\mathrm{tree}} \cup R$
+    \State add one incident edge from $Q_i$ for every unsupported node in $V_i$ to $H_i$
+    \State allocate the remaining $m-|H_i|$ edges across predicates in proportion to their frequencies in $G$;
+    sample these edges without replacement from $Q_i$
+    \State $G_i \gets (V_i,H_i)$
+    \State $d_i \gets \operatorname{JSD}(\deg(G_i),\deg(G)) +
+    \operatorname{JSD}(\operatorname{comp}(G_i),\operatorname{comp}(G)) +
+    \operatorname{JSD}(\operatorname{pred}(G_i),\operatorname{pred}(G)) +
+    \operatorname{JSD}(\operatorname{type}(G_i),\operatorname{type}(G)) +
+    |\operatorname{LCC}(G_i)-\operatorname{LCC}(G)|$
+\EndFor
+\State \Return $G^\star \gets \arg\min_{G_i} d_i$
+\end{algorithmic}
+\end{algorithm}
+
+% \operatorname{comp} uses relative (graph-size-normalized) component-size
+% bins, \operatorname{LCC} is the fraction of nodes in the largest weakly
+% connected component, and JSD denotes Jensen--Shannon distance.

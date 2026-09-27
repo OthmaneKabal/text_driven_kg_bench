@@ -344,6 +344,7 @@ class Trainer:
             verbose: bool = True,
             eval_every: int = 1,
             save_best_model: bool = True,
+            save_model_checkpoint: bool = True,
             artifacts_dir: Optional[str] = None,
             artifact_prefix: str = "run",
             label_encoder=None,
@@ -361,8 +362,9 @@ class Trainer:
         - patience: Early stopping patience
         - verbose: Print training progress
         - eval_every: Evaluate every N epochs
-        - save_best_model: Keep best model state
-        - artifacts_dir: Optional directory where the best checkpoint and predictions are saved
+        - save_best_model: Keep the best model state in memory for final evaluation
+        - save_model_checkpoint: Write the best checkpoint to disk
+        - artifacts_dir: Optional directory where predictions, and optionally the checkpoint, are saved
         - artifact_prefix: Prefix used for saved artifact filenames
         - save_prediction_splits: Splits to save predictions for after reloading the best model
 
@@ -441,19 +443,20 @@ class Trainer:
             artifacts_path = Path(artifacts_dir)
             artifacts_path.mkdir(parents=True, exist_ok=True)
 
-            model_path = artifacts_path / f"{artifact_prefix}_best_model.pt"
-            torch.save(
-                {
-                    "model_state_dict": self.model.state_dict(),
-                    "best_val_f1": self.best_val_f1,
-                    "best_epoch": self.best_epoch,
-                    "lr": self.lr,
-                    "weight_decay": self.weight_decay,
-                },
-                model_path,
-            )
-            artifact_paths["best_model"] = str(model_path)
-            print(f"Best model saved to {model_path}")
+            if save_model_checkpoint:
+                model_path = artifacts_path / f"{artifact_prefix}_best_model.pt"
+                torch.save(
+                    {
+                        "model_state_dict": self.model.state_dict(),
+                        "best_val_f1": self.best_val_f1,
+                        "best_epoch": self.best_epoch,
+                        "lr": self.lr,
+                        "weight_decay": self.weight_decay,
+                    },
+                    model_path,
+                )
+                artifact_paths["best_model"] = str(model_path)
+                print(f"Best model saved to {model_path}")
 
             loaders_by_split = {
                 "train": train_loader,

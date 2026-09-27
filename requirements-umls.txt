@@ -1,0 +1,2 @@
+# Optional dependency used by build_umls_nci_graph.py.
+mysql-connector-python==9.1.0
