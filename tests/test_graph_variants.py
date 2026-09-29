@@ -153,6 +153,16 @@ class GraphVariantsTest(unittest.TestCase):
             self.graph("Example_kg", ["raw"], format="rdf")
         self.assertEqual(len(self.graph("Example_kg", ["raw"])), 52)
 
+    def test_rdf_export_preserves_empty_string_nodes(self) -> None:
+        write_json(
+            self.datasets / "Empty_kg_raw.json",
+            [{"subject": "", "predicate": "rel", "object": "Object"}],
+        )
+        output = self.graph("Empty_kg", ["raw"], format="rdf", save=True)
+        root = ElementTree.parse(output).getroot()
+        self.assertEqual(root.tag, "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}RDF")
+        self.assertIn('rdf:about="https://tdg-bench.org/resource/entity/"', output.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -106,9 +106,9 @@ def _write_rdf_xml(path: Path, graph: list[dict[str, Any]]) -> None:
         subject = record.get("subject")
         predicate = record.get("predicate")
         obj = record.get("object")
-        if not all(isinstance(value, str) and value.strip() for value in (subject, predicate, obj)):
+        if not all(isinstance(value, str) for value in (subject, predicate, obj)):
             raise ValueError(
-                f"Cannot export record {index} to RDF: subject, predicate and object must be non-empty strings"
+                f"Cannot export record {index} to RDF: subject, predicate and object must be strings"
             )
         subject_iri = _rdf_entity_iri(subject)
         object_iri = _rdf_entity_iri(obj)
