@@ -47,14 +47,23 @@ def variants_for(kg_name: str) -> tuple[tuple[str, ...], ...]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--graphs", nargs="+", default=DEFAULT_GRAPHS)
+    parser.add_argument(
+        "--format", choices=("json", "rdf"), default="json",
+        help="Output format to materialise. RDF writes paired RDF/XML .rdf files.",
+    )
     args = parser.parse_args()
 
     for kg_name in args.graphs:
         print(f"\nGenerating variants for {kg_name}")
         for options in variants_for(kg_name):
             label = "default" if not options else ", ".join(options)
-            graph = get_graph(kg_name=kg_name, options=options, save=True)
-            print(f"  {label}: {len(graph):,} records")
+            output = get_graph(
+                kg_name=kg_name, options=options, save=True, format=args.format
+            )
+            if args.format == "rdf":
+                print(f"  {label}: {output}")
+            else:
+                print(f"  {label}: {len(output):,} records")
     return 0
 
 

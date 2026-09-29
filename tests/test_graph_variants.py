@@ -15,6 +15,7 @@ import warnings
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
+from xml.etree import ElementTree
 
 import pandas as pd
 
@@ -136,6 +137,21 @@ class GraphVariantsTest(unittest.TestCase):
             self.graph("Example_kg", ["raw", "no_smnt"])
         with self.assertRaises(ValueError):
             self.graph("Example_kg", ["with_inverse"])
+
+    def test_rdf_export_writes_paired_rdf_xml_file(self) -> None:
+        output = self.graph("Example_kg", ["raw"], format="rdf", save=True)
+        self.assertEqual(output, self.datasets / "Example_kg_raw.rdf")
+        self.assertTrue(output.exists())
+        root = ElementTree.parse(output).getroot()
+        self.assertEqual(root.tag, "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}RDF")
+        text = output.read_text(encoding="utf-8")
+        self.assertIn("Alpha", text)
+        self.assertIn("direct_rel", text)
+
+    def test_rdf_requires_save_and_json_remains_default(self) -> None:
+        with self.assertRaises(ValueError):
+            self.graph("Example_kg", ["raw"], format="rdf")
+        self.assertEqual(len(self.graph("Example_kg", ["raw"])), 52)
 
 
 if __name__ == "__main__":

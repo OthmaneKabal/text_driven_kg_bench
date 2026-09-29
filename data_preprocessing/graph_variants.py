@@ -8,12 +8,15 @@ predicate normalization.
 
 from __future__ import annotations
 
+import base64
 import json
 import unicodedata
 import warnings
 from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
+from urllib.parse import quote
+from xml.sax.saxutils import escape, quoteattr
 
 import pandas as pd
 
@@ -43,6 +46,12 @@ VALID_OPTIONS = frozenset(
         OPTION_WITH_INVERSE,
     }
 )
+VALID_FORMATS = frozenset({"json", "rdf"})
+
+RDF_NAMESPACE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+RDFS_NAMESPACE = "http://www.w3.org/2000/01/rdf-schema#"
+RDF_ENTITY_NAMESPACE = "https://tdg-bench.org/resource/entity/"
+RDF_RELATION_NAMESPACE = "https://tdg-bench.org/resource/relation/"
 
 
 def _normalize_text(value: object) -> str:
@@ -63,6 +72,77 @@ def _write_graph(path: Path, graph: list[dict[str, Any]]) -> None:
     with temporary.open("w", encoding="utf-8") as handle:
         json.dump(graph, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
+    temporary.replace(path)
+
+
+def _rdf_path(kg_name: str, options: tuple[str, ...], datasets_dir: Path) -> Path:
+    """Return the RDF/XML path paired with a JSON graph variant path."""
+    return _variant_path(kg_name, options, datasets_dir).with_suffix(".rdf")
+
+
+def _rdf_entity_iri(value: str) -> str:
+    return f"{RDF_ENTITY_NAMESPACE}{quote(value, safe='-._~')}"
+
+
+def _rdf_predicate_local_name(predicate: str) -> str:
+    """Produce an XML-safe, reversible local name for an arbitrary predicate."""
+    token = base64.urlsafe_b64encode(predicate.encode("utf-8")).decode("ascii").rstrip("=")
+    return f"p_{token or 'empty'}"
+
+
+def _write_rdf_xml(path: Path, graph: list[dict[str, Any]]) -> None:
+    """Write graph records as RDF/XML while preserving each original SPO label.
+
+    Subjects and objects are RDF resources. Predicates use deterministic IRIs
+    in ``RDF_RELATION_NAMESPACE``; every generated resource has an
+    ``rdfs:label`` carrying its original JSON value, so source labels remain
+    recoverable. RDF is a set of triples: identical JSON SPO records are
+    represented by the same RDF triple.
+    """
+    entities: dict[str, str] = {}
+    relations: dict[str, str] = {}
+    edges: list[tuple[str, str, str]] = []
+    for index, record in enumerate(graph):
+        subject = record.get("subject")
+        predicate = record.get("predicate")
+        obj = record.get("object")
+        if not all(isinstance(value, str) and value.strip() for value in (subject, predicate, obj)):
+            raise ValueError(
+                f"Cannot export record {index} to RDF: subject, predicate and object must be non-empty strings"
+            )
+        subject_iri = _rdf_entity_iri(subject)
+        object_iri = _rdf_entity_iri(obj)
+        predicate_local = _rdf_predicate_local_name(predicate)
+        entities[subject_iri] = subject
+        entities[object_iri] = obj
+        relations[predicate_local] = predicate
+        edges.append((subject_iri, predicate_local, object_iri))
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp")
+    with temporary.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+        handle.write(
+            f'<rdf:RDF xmlns:rdf="{RDF_NAMESPACE}" '
+            f'xmlns:rdfs="{RDFS_NAMESPACE}" '
+            f'xmlns:tdgr="{RDF_RELATION_NAMESPACE}">\n'
+        )
+        for subject_iri, predicate_local, object_iri in edges:
+            handle.write(f'  <rdf:Description rdf:about={quoteattr(subject_iri)}>\n')
+            handle.write(
+                f'    <tdgr:{predicate_local} rdf:resource={quoteattr(object_iri)}/>\n'
+            )
+            handle.write("  </rdf:Description>\n")
+        for entity_iri, label in entities.items():
+            handle.write(f'  <rdf:Description rdf:about={quoteattr(entity_iri)}>\n')
+            handle.write(f"    <rdfs:label>{escape(label)}</rdfs:label>\n")
+            handle.write("  </rdf:Description>\n")
+        for predicate_local, label in relations.items():
+            predicate_iri = f"{RDF_RELATION_NAMESPACE}{predicate_local}"
+            handle.write(f'  <rdf:Description rdf:about={quoteattr(predicate_iri)}>\n')
+            handle.write(f"    <rdfs:label>{escape(label)}</rdfs:label>\n")
+            handle.write("  </rdf:Description>\n")
+        handle.write("</rdf:RDF>\n")
     temporary.replace(path)
 
 
@@ -200,26 +280,38 @@ def get_graph(
     kg_name: str,
     options: Iterable[str] | None = None,
     save: bool = False,
+    format: str = "json",
     with_stats: bool = False,
     datasets_dir: str | Path = DEFAULT_DATASETS_DIR,
     semantic_types_path: str | Path = DEFAULT_SEMANTIC_TYPES,
     inverse_resolver_path: str | Path = DEFAULT_UMLS_INVERSE_RESOLVER,
     frequency_threshold: int = FREQUENCY_THRESHOLD,
-) -> list[dict[str, Any]] | tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Return one graph variant, optionally saving it and/or returning statistics.
+) -> list[dict[str, Any]] | Path | tuple[list[dict[str, Any]] | Path, dict[str, Any]]:
+    """Return one graph variant in JSON records or persist it as RDF/XML.
 
     ``options=[]`` loads ``<kg_name>.json`` directly. Any non-raw option starts
     from ``<kg_name>_raw.json`` when available and applies all default treatments
     except those explicitly disabled by an option.
+
+    ``format="json"`` (default) returns JSON records and, with ``save=True``,
+    writes ``<variant>.json``. ``format="rdf"`` requires ``save=True`` and
+    writes/returns the paired ``<variant>.rdf`` RDF/XML file. RDF resources are
+    labelled with their original JSON values. Identical JSON SPO records map to
+    one RDF triple because RDF graphs have set semantics.
     """
     if not isinstance(kg_name, str) or not kg_name.strip():
         raise ValueError("kg_name must be a non-empty string")
     if frequency_threshold < 1:
         raise ValueError("frequency_threshold must be >= 1")
+    if format not in VALID_FORMATS:
+        raise ValueError(f"Unknown graph format '{format}'. Supported formats: {sorted(VALID_FORMATS)}")
+    if format == "rdf" and not save:
+        raise ValueError("format='rdf' writes an RDF/XML file; set save=True")
     kg_name = kg_name.strip()
     resolved_options = _normalise_options(kg_name, options)
     root = Path(datasets_dir)
     output_path = _variant_path(kg_name, resolved_options, root)
+    rdf_output_path = _rdf_path(kg_name, resolved_options, root)
 
     if not resolved_options:
         if not output_path.exists():
@@ -238,9 +330,18 @@ def get_graph(
             graph = _apply_frequency_filter(graph, frequency_threshold)
         if OPTION_NO_SEMANTIC_TYPES not in resolved_options:
             graph = _add_semantic_type_edges(graph, Path(semantic_types_path))
-        if save:
+        if save and format == "json":
             _write_graph(output_path, graph)
 
+    result: list[dict[str, Any]] | Path
+    if format == "rdf":
+        if rdf_output_path.exists():
+            print(f"RDF variant already exists: {rdf_output_path}")
+        else:
+            _write_rdf_xml(rdf_output_path, graph)
+        result = rdf_output_path
+    else:
+        result = graph
     if with_stats:
-        return graph, compute_graph_stats(graph)
-    return graph
+        return result, compute_graph_stats(graph)
+    return result
