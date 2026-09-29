@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from multiprocessing import get_context
 import sys
 import traceback
 from pathlib import Path
@@ -91,7 +92,7 @@ def main() -> int:
         raise ValueError("num-workers must be >= 1")
     if args.smoke_test and args.num_workers > 1:
         failures = 0
-        with ProcessPoolExecutor(max_workers=args.num_workers) as executor:
+        with ProcessPoolExecutor(max_workers=args.num_workers, mp_context=get_context("spawn")) as executor:
             futures = {
                 executor.submit(run_smoke_task, task, str(output_root)): task
                 for task in tasks
@@ -108,7 +109,7 @@ def main() -> int:
         return 0
     if args.num_workers > 1:
         failures = 0
-        with ProcessPoolExecutor(max_workers=args.num_workers) as executor:
+        with ProcessPoolExecutor(max_workers=args.num_workers, mp_context=get_context("spawn")) as executor:
             futures = {
                 executor.submit(
                     run_full_task, task, str(output_root), epochs, args.patience,
