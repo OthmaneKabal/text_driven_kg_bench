@@ -23,6 +23,11 @@ from pathlib import Path
 from typing import Any
 
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+
 GRAPHS = ("GT2KG_kg", "KG_GEN_kg", "UMLS_nci_kg")
 MODELS = (
     "GCN", "GAT", "RGCN", "TransEGCN_conv", "RotatEGCN_conv",
@@ -51,6 +56,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--single", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--graph", help=argparse.SUPPRESS)
     parser.add_argument("--model", help=argparse.SUPPRESS)
+    parser.add_argument("--measurement-path", help=argparse.SUPPRESS)
     return parser.parse_args()
 
 
@@ -59,7 +65,11 @@ def run_single(args: argparse.Namespace) -> int:
     if not args.graph or not args.model:
         raise ValueError("--single requires --graph and --model")
 
+    import torch
     from tdg_bench import TDGBench
+
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
 
     TDGBench(use_classifier=True).evaluate_models(
         kg_name=args.graph,
@@ -77,6 +87,24 @@ def run_single(args: argparse.Namespace) -> int:
         resume=False,
         results_dir=str(Path(args.results_dir) / "training_artifacts"),
     )
+    if args.measurement_path:
+        peak_allocated = (
+            int(torch.cuda.max_memory_allocated()) if torch.cuda.is_available() else 0
+        )
+        peak_reserved = (
+            int(torch.cuda.max_memory_reserved()) if torch.cuda.is_available() else 0
+        )
+        Path(args.measurement_path).write_text(
+            json.dumps(
+                {
+                    "torch_cuda_available": torch.cuda.is_available(),
+                    "peak_allocated_mib": round(peak_allocated / (1024**2), 3),
+                    "peak_reserved_mib": round(peak_reserved / (1024**2), 3),
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
     return 0
 
 
@@ -129,7 +157,8 @@ def write_rows(path: Path, rows: list[dict[str, Any]]) -> None:
     fields = [
         "graph", "model", "hidden_channels", "embedding", "epochs",
         "split_seed", "random_seed", "status", "return_code", "peak_vram_mib",
-        "peak_vram_gib", "gpu_total_mib", "budget_fraction",
+        "peak_vram_gib", "nvidia_smi_peak_mib", "torch_peak_allocated_mib",
+        "torch_peak_reserved_mib", "gpu_total_mib", "budget_fraction",
         "memory_only_worker_limit", "started_at_utc", "finished_at_utc", "log_path",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -160,11 +189,14 @@ def profile_task(
     args: argparse.Namespace, graph: str, model: str, gpu_total_mib: int, log_dir: Path
 ) -> dict[str, Any]:
     log_path = log_dir / f"{graph}__{model}__h{args.hidden}.log"
+    measurement_path = log_dir / f"{graph}__{model}__h{args.hidden}.memory.json"
     started_at = datetime.now(timezone.utc).isoformat()
     peak_mib = 0
     with log_path.open("w", encoding="utf-8") as log_handle:
+        command = child_command(args, graph, model)
+        command.extend(["--measurement-path", str(measurement_path)])
         child = subprocess.Popen(
-            child_command(args, graph, model),
+            command,
             stdout=log_handle,
             stderr=subprocess.STDOUT,
         )
@@ -173,6 +205,13 @@ def profile_task(
             time.sleep(args.poll_seconds)
         peak_mib = max(peak_mib, gpu_memory_by_pid().get(child.pid, 0))
 
+    torch_measurement: dict[str, Any] = {}
+    if measurement_path.exists():
+        torch_measurement = json.loads(measurement_path.read_text(encoding="utf-8"))
+    nvidia_smi_peak_mib = peak_mib
+    torch_peak_allocated_mib = float(torch_measurement.get("peak_allocated_mib", 0.0))
+    torch_peak_reserved_mib = float(torch_measurement.get("peak_reserved_mib", 0.0))
+    peak_mib = max(peak_mib, math.ceil(torch_peak_reserved_mib))
     return_code = child.returncode
     worker_limit = (
         math.floor((gpu_total_mib * args.budget_fraction) / peak_mib)
@@ -187,10 +226,17 @@ def profile_task(
         "epochs": args.epochs,
         "split_seed": args.split_seed,
         "random_seed": args.random_seed,
-        "status": "completed" if return_code == 0 and peak_mib > 0 else "failed_or_unmeasured",
+        "status": (
+            "completed" if return_code == 0 and peak_mib > 0
+            else "failed" if return_code != 0
+            else "completed_unmeasured"
+        ),
         "return_code": return_code,
         "peak_vram_mib": peak_mib,
         "peak_vram_gib": round(peak_mib / 1024, 3),
+        "nvidia_smi_peak_mib": nvidia_smi_peak_mib,
+        "torch_peak_allocated_mib": torch_peak_allocated_mib,
+        "torch_peak_reserved_mib": torch_peak_reserved_mib,
         "gpu_total_mib": gpu_total_mib,
         "budget_fraction": args.budget_fraction,
         "memory_only_worker_limit": worker_limit,
