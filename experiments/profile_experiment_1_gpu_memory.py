@@ -214,6 +214,7 @@ def main() -> int:
     result_dir = Path(args.results_dir)
     result_path = result_dir / "gpu_memory_profile.csv"
     log_dir = result_dir / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
     existing: list[dict[str, Any]] = []
     if args.resume and result_path.exists():
         with result_path.open(encoding="utf-8", newline="") as handle:
