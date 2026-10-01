@@ -40,7 +40,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument(
         "--smoke-test", action="store_true",
-        help="Run every graph/model once with h=512, split=42, random seed=1 and 2 epochs.",
+        help="Run every graph/model once with h=512, split=42 and random seed=1.",
+    )
+    parser.add_argument(
+        "--smoke-epochs", type=int, default=2,
+        help="Number of epochs for --smoke-test (default: 2).",
     )
     parser.add_argument(
         "--num-workers", type=int, default=1,
@@ -50,13 +54,15 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run_smoke_task(task: tuple[str, str, str, str, int], output_root: str) -> None:
+def run_smoke_task(
+    task: tuple[str, str, str, str, int], output_root: str, epochs: int
+) -> None:
     """Run one independent smoke configuration in a child process."""
     label, embedding, graph, model, hidden = task
     TDGBench(use_classifier=True).evaluate_models(
         kg_name=graph, model_names=[model], init_embd=embedding,
         split_seeds=[42], random_seeds=[1], hidden_channels=[hidden],
-        random_embd_dim=384, epochs=2, patience=100, verbose=False,
+        random_embd_dim=384, epochs=epochs, patience=100, verbose=False,
         save_models=False, save_predictions=False, resume=True,
         results_dir=str(Path(output_root) / label),
     )
@@ -83,7 +89,7 @@ def main() -> int:
     hidden_channels = (512,) if args.smoke_test else HIDDEN_CHANNELS
     split_seeds = [42] if args.smoke_test else PREGENERATED_SPLIT_SEEDS
     random_seeds = [1] if args.smoke_test else [1, 2, 3, 4, 5]
-    epochs = 2 if args.smoke_test else args.epochs
+    epochs = args.smoke_epochs if args.smoke_test else args.epochs
     output_root = Path(args.results_dir) / "smoke_test" if args.smoke_test else Path(args.results_dir)
     tasks = [
         (embedding_label, embedding, graph, model, hidden)
@@ -95,11 +101,13 @@ def main() -> int:
     print(f"{len(tasks)} configurations.")
     if args.num_workers < 1:
         raise ValueError("num-workers must be >= 1")
+    if args.smoke_epochs < 1:
+        raise ValueError("smoke-epochs must be >= 1")
     if args.smoke_test and args.num_workers > 1:
         failures = 0
         with ProcessPoolExecutor(max_workers=args.num_workers, mp_context=get_context("spawn")) as executor:
             futures = {
-                executor.submit(run_smoke_task, task, str(output_root)): task
+                executor.submit(run_smoke_task, task, str(output_root), args.smoke_epochs): task
                 for task in tasks
             }
             for number, future in enumerate(as_completed(futures), 1):
