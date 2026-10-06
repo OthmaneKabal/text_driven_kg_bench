@@ -4,6 +4,8 @@ sys.path.append("../../utilities")
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 import os
+import time
+from contextlib import contextmanager
 from sklearn.model_selection import train_test_split
 from data_preprocessing.initial_embeddings.GraphBERTEmbedder import GraphBERTEmbedder
 import os
@@ -142,6 +144,55 @@ class GraphDataPreparation:
                 cleaned_graph.append(triplet)
         return cleaned_graph
 
+    @staticmethod
+    @contextmanager
+    def _embedding_cache_lock(cache_directory, model_short_name, timeout_seconds=3600):
+        """Serialize cache creation across spawned experiment workers.
+
+        A graph variant may be requested by many workers before its initial
+        embeddings exist.  ``O_EXCL`` makes creation of this lock atomic on
+        both Windows and POSIX file systems.  A dead local process leaves no
+        permanent blockage: its lock is reclaimed on the next attempt.
+        """
+        lock_path = os.path.join(cache_directory, f".{model_short_name}.lock")
+        started = time.monotonic()
+        descriptor = None
+        while descriptor is None:
+            try:
+                descriptor = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.write(descriptor, str(os.getpid()).encode("ascii"))
+            except FileExistsError:
+                stale = False
+                try:
+                    with open(lock_path, "r", encoding="ascii") as handle:
+                        owner_pid = int(handle.read().strip())
+                    try:
+                        os.kill(owner_pid, 0)
+                    except ProcessLookupError:
+                        stale = True
+                    except PermissionError:
+                        # The owner exists but belongs to another user.
+                        pass
+                except (OSError, ValueError):
+                    stale = True
+                if stale:
+                    try:
+                        os.unlink(lock_path)
+                    except FileNotFoundError:
+                        pass
+                    continue
+                if time.monotonic() - started >= timeout_seconds:
+                    raise TimeoutError(f"Timed out waiting for embedding cache lock: {lock_path}")
+                time.sleep(0.25)
+        try:
+            yield
+        finally:
+            os.close(descriptor)
+            try:
+                os.unlink(lock_path)
+            except FileNotFoundError:
+                pass
+
     def _resolve_embeddings(self, graph_data):
         # Priority 1: explicit paths provided
         if self.entities_embd_path and self.edges_embd_path:
@@ -158,34 +209,41 @@ class GraphDataPreparation:
             auto_entities_path = os.path.join(output_init_embeddings_path, f"Entities_{model_short_name}.pickle")
             auto_edges_path = os.path.join(output_init_embeddings_path, f"Predicates_{model_short_name}.pickle")
 
-            if os.path.exists(auto_entities_path) and os.path.exists(auto_edges_path):
-                cached_entities = u.read_pickle_file(auto_entities_path)
-                cached_predicates = u.read_pickle_file(auto_edges_path)
+            # Several spawned runs can request a new variant at the same time.
+            # Hold the lock for both validation and creation: otherwise one
+            # process can read a pickle while another is still writing it.
+            os.makedirs(output_init_embeddings_path, exist_ok=True)
+            with self._embedding_cache_lock(output_init_embeddings_path, model_short_name):
                 expected_entities = {
                     entry[endpoint]
                     for entry in graph_data
                     for endpoint in ("subject", "object")
                 }
                 expected_predicates = {entry["predicate"] for entry in graph_data}
-                missing_entities = expected_entities - set(cached_entities)
-                missing_predicates = expected_predicates - set(cached_predicates)
-                if not missing_entities and not missing_predicates:
-                    print(f"[INFO] Found cached embeddings for '{model_short_name}', loading from {output_init_embeddings_path}")
-                    return cached_entities, cached_predicates
-                print(
-                    f"[INFO] Cached embeddings are incomplete for the current graph "
-                    f"({len(missing_entities)} entity and {len(missing_predicates)} predicate embedding(s) missing); rebuilding."
-                )
+                if os.path.exists(auto_entities_path) and os.path.exists(auto_edges_path):
+                    cached_entities = u.read_pickle_file(auto_entities_path)
+                    cached_predicates = u.read_pickle_file(auto_edges_path)
+                    if isinstance(cached_entities, dict) and isinstance(cached_predicates, dict):
+                        missing_entities = expected_entities - set(cached_entities)
+                        missing_predicates = expected_predicates - set(cached_predicates)
+                        if not missing_entities and not missing_predicates:
+                            print(f"[INFO] Found cached embeddings for '{model_short_name}', loading from {output_init_embeddings_path}")
+                            return cached_entities, cached_predicates
+                        print(
+                            f"[INFO] Cached embeddings are incomplete for the current graph "
+                            f"({len(missing_entities)} entity and {len(missing_predicates)} predicate embedding(s) missing); rebuilding."
+                        )
+                    else:
+                        print("[WARN] Cached embeddings are unreadable; rebuilding them safely.")
 
-            print(f"[INFO] No cached embeddings found, running GraphBERTEmbedder with '{self.model_name_init}'")
-            os.makedirs(output_init_embeddings_path, exist_ok=True)
-            gbe = GraphBERTEmbedder(
-                self.kg_path,
-                output_init_embeddings_path,
-                self.model_name_init,
-                graph_records=graph_data,
-            )
-            return gbe.run()
+                print(f"[INFO] No cached embeddings found, running GraphBERTEmbedder with '{self.model_name_init}'")
+                gbe = GraphBERTEmbedder(
+                    self.kg_path,
+                    output_init_embeddings_path,
+                    self.model_name_init,
+                    graph_records=graph_data,
+                )
+                return gbe.run()
 
         # Priority 3: no model name → random embeddings
         print(f"[INFO] Using RANDOM embeddings (seed={self.random_embd_seed})")

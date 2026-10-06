@@ -1,6 +1,7 @@
 import json
 import os
 import pickle
+import tempfile
 import torch
 import numpy as np
 import random
@@ -59,8 +60,18 @@ def save_to_json(path,data):
 
 def save_to_pickle(save_path, data):
     try:
-        with open(save_path, 'wb') as pickle_file:
+        directory = os.path.dirname(os.path.abspath(save_path))
+        os.makedirs(directory, exist_ok=True)
+        # ``replace`` publishes a fully written cache in one operation.  This
+        # prevents concurrent readers from observing a half-written pickle.
+        descriptor, temporary_path = tempfile.mkstemp(
+            prefix=".pickle-",
+            suffix=".tmp",
+            dir=directory,
+        )
+        with os.fdopen(descriptor, 'wb') as pickle_file:
             pickle.dump(data, pickle_file)
+        os.replace(temporary_path, save_path)
         print("file have been successfully saved to", save_path)
     except IOError:
         print("Error: Unable to write to the file", save_path)
