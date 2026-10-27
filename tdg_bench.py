@@ -1593,7 +1593,11 @@ class TDGBench:
             # 260-character path limit.
             seed_artifacts_dir = (
                 str(Path(results_dir) / "artifacts" / f"s{split_seed}" / f"r{random_seed}")
-                if save_results and (save_models or save_predictions)
+                # Artifacts can be requested for a lightweight replay that
+                # deliberately does not persist the aggregate benchmark JSON.
+                # In particular, saving test predictions must not depend on
+                # ``save_results``.
+                if save_models or save_predictions
                 else None
             )
             seed_artifact_prefix = f"run_s{split_seed}_r{random_seed}"
