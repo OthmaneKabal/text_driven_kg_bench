@@ -46,3 +46,21 @@ __pycache__/
 
 # Optional local keys
 *.pub
+
+# Local paper, release, and generated-artifact workspaces. These remain on
+# disk but are not part of the source repository.
+/TDGBench_v1.0/
+/DBpedia_Results/
+/paper_tables/
+/graphs_stats/
+/preview*.aux
+/preview*.log
+/preview*.pdf
+/preview*.png
+
+# RDF is exported from the JSON graph files by the supplied generation
+# scripts; do not version the large derived serialisations.
+/datasets/*.rdf
+
+# Temporary directories created by graph-variant tests.
+/tests/tmp*/
