@@ -19,7 +19,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
-from scipy.stats import shapiro, t as student_t
+from scipy.stats import shapiro, t as student_t, wilcoxon
 
 
 DEFAULT_ALPHA = 0.05
@@ -178,6 +178,27 @@ def paired_student_t_test(differences: Sequence[float]) -> dict[str, float | int
         "p_value_raw": p_value,
         "shapiro_w": float(shapiro_result.statistic) if shapiro_result else float("nan"),
         "shapiro_p_value": float(shapiro_result.pvalue) if shapiro_result else float("nan"),
+    }
+
+
+def paired_wilcoxon_test(differences: Sequence[float]) -> dict[str, float]:
+    """Two-sided Wilcoxon signed-rank sensitivity test on split differences.
+
+    This non-parametric result is reported alongside, but does not replace,
+    the pre-specified paired Student t-test used for the main inference.
+    """
+    values = np.asarray(differences, dtype=float)
+    if values.ndim != 1 or len(values) < 2:
+        raise ValueError("A paired Wilcoxon test requires at least two paired splits")
+    if not np.all(np.isfinite(values)):
+        raise ValueError("differences must all be finite")
+    if np.all(values == 0.0):
+        return {"wilcoxon_statistic": 0.0, "p_value_wilcoxon_raw": 1.0}
+
+    result = wilcoxon(values, alternative="two-sided", zero_method="wilcox", method="auto")
+    return {
+        "wilcoxon_statistic": float(result.statistic),
+        "p_value_wilcoxon_raw": float(result.pvalue),
     }
 
 
@@ -340,6 +361,7 @@ def compare_models_by_graph(
                 for seed in split_seeds
             ]
             statistics = paired_student_t_test(differences)
+            wilcoxon_statistics = paired_wilcoxon_test(differences)
             first_configuration = _parse_model_configuration(first.model_name)
             second_configuration = _parse_model_configuration(second.model_name)
             graph_rows.append(
@@ -371,15 +393,26 @@ def compare_models_by_graph(
                         map(str, first.random_seeds_by_split[split_seeds[0]])
                     ),
                     **statistics,
+                    **wilcoxon_statistics,
                 }
             )
 
         if graph_rows:
             adjusted, ranks = holm_adjust([row["p_value_raw"] for row in graph_rows])
-            for row, adjusted_p, rank in zip(graph_rows, adjusted, ranks):
+            wilcoxon_adjusted, _ = holm_adjust(
+                [row["p_value_wilcoxon_raw"] for row in graph_rows]
+            )
+            for row, adjusted_p, wilcoxon_adjusted_p, rank in zip(
+                graph_rows, adjusted, wilcoxon_adjusted, ranks
+            ):
                 row["holm_rank_within_graph"] = rank
                 row["p_value_holm"] = adjusted_p
                 row["significant_holm"] = bool(adjusted_p <= alpha)
+                row["p_value_wilcoxon_holm"] = wilcoxon_adjusted_p
+                row["significant_wilcoxon_holm"] = bool(wilcoxon_adjusted_p <= alpha)
+                row["tests_agree"] = (
+                    row["significant_holm"] == row["significant_wilcoxon_holm"]
+                )
                 row["alpha"] = alpha
             rows.extend(graph_rows)
 

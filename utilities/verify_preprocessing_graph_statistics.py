@@ -17,12 +17,15 @@ import argparse
 from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
+import sys
 from typing import Any
 
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 DATASETS = ROOT / "datasets"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from data_preprocessing.graph_variants import (
     OPTION_NO_FREQUENCY_FILTER,
@@ -90,6 +93,7 @@ class VariantStatistics:
     base_graph: str
     options: str
     edges: int
+    invalid_spo_records: int
     nodes: int
     unique_relations: int
     weakly_connected_components: int
@@ -137,12 +141,15 @@ def calculate_statistics(
     predicates: set[str] = set()
     natural_predicate_counts: Counter[str] = Counter()
     labelled_edges = same_label_edges = 0
-    synthetic_edges = synthetic_isa_edges = inverse_edges = 0
+    synthetic_edges = synthetic_isa_edges = inverse_edges = invalid_records = 0
 
     for index, record in enumerate(records):
         subject, predicate, obj = record.get("subject"), record.get("predicate"), record.get("object")
         if not all(isinstance(value, str) and value.strip() for value in (subject, predicate, obj)):
-            raise ValueError(f"{graph}: invalid SPO record at index {index}")
+            # Keep the total record count intact, but exclude malformed rows
+            # from graph-theoretic statistics that require a valid SPO triple.
+            invalid_records += 1
+            continue
         components.union(subject, obj)
         predicates.add(predicate)
         is_synthetic = record.get("synthetic") is True
@@ -166,6 +173,7 @@ def calculate_statistics(
         base_graph=base_graph,
         options="default (all treatments)" if not options else ", ".join(options),
         edges=len(records),
+        invalid_spo_records=invalid_records,
         nodes=len(components.parent),
         unique_relations=len(predicates),
         weakly_connected_components=len(component_sizes),

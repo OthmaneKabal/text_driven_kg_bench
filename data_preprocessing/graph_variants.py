@@ -33,6 +33,8 @@ DEFAULT_UMLS_INVERSE_RESOLVER = (
 )
 FREQUENCY_THRESHOLD = 50
 UMLS_NCI_KG_NAME = "UMLS_nci_kg"
+KG_GEN_KG_NAME = "KG_GEN_kg"
+GT2KG_KG_NAME = "GT2KG_kg"
 
 OPTION_RAW = "raw"
 OPTION_NO_SEMANTIC_TYPES = "no_smnt"
@@ -282,6 +284,7 @@ def get_graph(
     save: bool = False,
     format: str = "json",
     with_stats: bool = False,
+    reuse_existing: bool = True,
     datasets_dir: str | Path = DEFAULT_DATASETS_DIR,
     semantic_types_path: str | Path = DEFAULT_SEMANTIC_TYPES,
     inverse_resolver_path: str | Path = DEFAULT_UMLS_INVERSE_RESOLVER,
@@ -294,7 +297,9 @@ def get_graph(
     except those explicitly disabled by an option.
 
     ``format="json"`` (default) returns JSON records and, with ``save=True``,
-    writes ``<variant>.json``. ``format="rdf"`` requires ``save=True`` and
+    writes ``<variant>.json``. Set ``reuse_existing=False`` to force a
+    reconstruction from the raw graph in memory, even when a saved variant is
+    already available. ``format="rdf"`` requires ``save=True`` and
     writes/returns the paired ``<variant>.rdf`` RDF/XML file. RDF resources are
     labelled with their original JSON values. Identical JSON SPO records map to
     one RDF triple because RDF graphs have set semantics.
@@ -313,11 +318,11 @@ def get_graph(
     output_path = _variant_path(kg_name, resolved_options, root)
     rdf_output_path = _rdf_path(kg_name, resolved_options, root)
 
-    if not resolved_options:
+    if not resolved_options and reuse_existing:
         if not output_path.exists():
             raise FileNotFoundError(f"Default graph does not exist: {output_path}")
         graph = _read_graph(output_path)
-    elif resolved_options != (OPTION_RAW,) and output_path.exists():
+    elif resolved_options != (OPTION_RAW,) and output_path.exists() and reuse_existing:
         print(f"Variant already exists: {output_path}")
         graph = _read_graph(output_path)
     elif resolved_options == (OPTION_RAW,):
@@ -329,7 +334,15 @@ def get_graph(
         if OPTION_NO_FREQUENCY_FILTER not in resolved_options:
             graph = _apply_frequency_filter(graph, frequency_threshold)
         if OPTION_NO_SEMANTIC_TYPES not in resolved_options:
-            graph = _add_semantic_type_edges(graph, Path(semantic_types_path))
+            # Reuse the hierarchy-like predicate already used by each source,
+            # rather than adding a spelling-equivalent relation label.
+            semantic_relation = {
+                KG_GEN_KG_NAME: "is a",
+                GT2KG_KG_NAME: "is",
+            }.get(kg_name, "isa")
+            graph = _add_semantic_type_edges(
+                graph, Path(semantic_types_path), relation=semantic_relation
+            )
         if save and format == "json":
             _write_graph(output_path, graph)
 

@@ -54,22 +54,28 @@ def _write_records(path: str | Path, records: list[dict[str, Any]]) -> None:
 def load_anchor_terms(
     common_nodes_path: str | Path = DEFAULT_COMMON_NODES,
     semantic_types_path: str | Path = DEFAULT_SEMANTIC_TYPES,
-) -> set[str]:
-    """Return common concepts, selected concepts, and semantic-type nodes."""
+) -> tuple[set[str], set[str]]:
+    """Return exact common-node labels and normalized STI anchor labels.
+
+    Common nodes are benchmark labels and therefore must be retained under
+    their exact spelling.  STI terms originate from several graphs and are
+    resolved by normalized form only when an exact label is unavailable.
+    """
     common_nodes = pd.read_excel(common_nodes_path)
     if "term" not in common_nodes.columns:
         raise ValueError(f"{common_nodes_path} must contain a 'term' column")
-    anchors = {
-        normalize_term(value)
+    common_terms = {
+        str(value)
         for value in common_nodes["term"].dropna()
         if str(value).strip()
     }
+    sti_anchors: set[str] = set()
     for item in _read_records(semantic_types_path):
         for field in ("normalized_term", "semantic_type"):
             value = item.get(field)
             if isinstance(value, str) and value.strip():
-                anchors.add(normalize_term(value))
-    return anchors
+                sti_anchors.add(normalize_term(value))
+    return common_terms, sti_anchors
 
 
 def _build_adjacency(
@@ -83,7 +89,10 @@ def _build_adjacency(
             continue
         if not isinstance(obj, str) or not obj.strip():
             continue
-        subject_id, object_id = normalize_term(subject), normalize_term(obj)
+        # Node identity is the original graph label.  Normalisation is used
+        # only when resolving mandatory anchors across graphs; it must never
+        # merge nodes while scale-matching their unique-node counts.
+        subject_id, object_id = subject, obj
         nodes.update((subject_id, object_id))
         adjacency_edges.setdefault(subject_id, {}).setdefault(object_id, index)
         adjacency_edges.setdefault(object_id, {}).setdefault(subject_id, index)
@@ -91,6 +100,53 @@ def _build_adjacency(
         {node: tuple(neighbors.items()) for node, neighbors in adjacency_edges.items()},
         nodes,
     )
+
+
+def _raw_unique_node_count(records: Iterable[dict[str, Any]]) -> int:
+    """Count unique endpoint labels exactly as represented in the target JSON.
+
+    The target graph supplies a scale (a cardinality), not a vocabulary to be
+    copied.  Empty/malformed endpoints may occur in source TDGs; they still
+    contribute to the historic raw-label statistic, while the clean sample
+    itself always contains usable non-empty UMLS nodes.
+    """
+    nodes: set[str] = set()
+    for record in records:
+        for field in ("subject", "object"):
+            value = record.get(field)
+            if isinstance(value, str):
+                nodes.add(value)
+    return len(nodes)
+
+
+def _resolve_anchor_labels(
+    common_terms: set[str], sti_anchors: set[str], clean_nodes: set[str]
+) -> tuple[set[str], set[str]]:
+    """Preserve exact benchmark labels, then resolve STI anchors by form."""
+    by_normalized: dict[str, list[str]] = {}
+    for label in clean_nodes:
+        by_normalized.setdefault(normalize_term(label), []).append(label)
+    anchors: set[str] = set()
+    missing: set[str] = set()
+    # Exact benchmark labels have precedence.  This guarantees that every
+    # common_nodes term remains resolvable by the gold-standard split files.
+    for requested in common_terms:
+        if requested in clean_nodes:
+            anchors.add(requested)
+            continue
+        candidates = by_normalized.get(normalize_term(requested))
+        if not candidates:
+            missing.add(requested)
+            continue
+        anchors.add(min(candidates, key=lambda value: (normalize_term(value), value)))
+
+    for requested in sti_anchors:
+        candidates = by_normalized.get(requested)
+        if not candidates:
+            missing.add(requested)
+            continue
+        anchors.add(min(candidates, key=lambda value: (normalize_term(value), value)))
+    return anchors, missing
 
 
 class _UnionFind:
@@ -164,7 +220,7 @@ def graph_profile(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
         subject, obj = record.get("subject"), record.get("object")
         if not isinstance(subject, str) or not subject.strip() or not isinstance(obj, str) or not obj.strip():
             continue
-        subject_id, object_id = normalize_term(subject), normalize_term(obj)
+        subject_id, object_id = subject, obj
         union_find.add(subject_id)
         union_find.add(object_id)
         union_find.union(subject_id, object_id)
@@ -318,7 +374,7 @@ def _relation_representatives(records: Iterable[dict[str, Any]], rng: random.Ran
 
 
 def _endpoints(record: dict[str, Any]) -> tuple[str, str]:
-    return normalize_term(record["subject"]), normalize_term(record["object"])
+    return str(record["subject"]), str(record["object"])
 
 
 def _sample_edges_with_budget(
@@ -417,11 +473,10 @@ def sample_scale_matched_clean_graphs(
     clean = _read_records(clean_graph_path)
     target = _read_records(target_graph_path)
     adjacency, clean_nodes = _build_adjacency(clean)
-    _target_adjacency, target_nodes_set = _build_adjacency(target)
-    target_size = len(target_nodes_set)
-    requested_anchors = load_anchor_terms(common_nodes_path, semantic_types_path)
-    anchors = requested_anchors & clean_nodes
-    missing_anchors = sorted(requested_anchors - clean_nodes)
+    target_size = _raw_unique_node_count(target)
+    common_terms, sti_anchors = load_anchor_terms(common_nodes_path, semantic_types_path)
+    anchors, missing_anchor_set = _resolve_anchor_labels(common_terms, sti_anchors, clean_nodes)
+    missing_anchors = sorted(missing_anchor_set)
     if not anchors:
         raise ValueError("None of the required anchors are present in the clean graph")
     if len(anchors) > target_size:

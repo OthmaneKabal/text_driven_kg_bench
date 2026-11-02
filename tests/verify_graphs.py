@@ -79,6 +79,11 @@ def expected_semantic_edges(name: str) -> bool:
 
 
 def expected_frequency_filter(name: str) -> bool:
+    # Scale/sparsity matching samples edges from an already filtered graph.
+    # It deliberately preserves relation diversity, so a relation may have
+    # fewer than 50 retained occurrences in the sampled control.
+    if "_scale_matched_" in name:
+        return False
     return "_raw" not in name and "_no_freq_filter" not in name
 
 

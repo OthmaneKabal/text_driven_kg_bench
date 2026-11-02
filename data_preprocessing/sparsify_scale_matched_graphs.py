@@ -366,12 +366,12 @@ def sparsify_records(
     return output, report
 
 
-def default_source_path(target: Path, rank: int) -> Path:
-    return DATASETS / f"UMLS_nci_kg_scale_matched_{target.stem}_top_{rank}.json"
+def default_source_path(target: Path, rank: int, source_dir: Path = DATASETS) -> Path:
+    return source_dir / f"UMLS_nci_kg_scale_matched_{target.stem}_top_{rank}.json"
 
 
-def default_output_path(target: Path, rank: int) -> Path:
-    return DATASETS / f"UMLS_nci_kg_scale_matched_{target.stem}_top_{rank}_sparsity_matched.json"
+def default_output_path(target: Path, rank: int, output_dir: Path = DATASETS) -> Path:
+    return output_dir / f"UMLS_nci_kg_scale_matched_{target.stem}_top_{rank}_sparsity_matched.json"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -379,6 +379,14 @@ def build_parser() -> argparse.ArgumentParser:
         description="Create edge-sparsity-matched versions of the ranked scale-matched clean graphs."
     )
     parser.add_argument("--targets", type=Path, nargs="+", default=TARGETS)
+    parser.add_argument(
+        "--source-dir", type=Path, default=DATASETS,
+        help="Directory containing the scale-matched source graphs.",
+    )
+    parser.add_argument(
+        "--output-dir", type=Path, default=DATASETS,
+        help="Directory where sparsity-matched graphs are written.",
+    )
     parser.add_argument("--top-k", type=int, default=3)
     parser.add_argument("--random-seed", type=int, default=42)
     parser.add_argument("--overwrite", action="store_true")
@@ -390,7 +398,12 @@ def main() -> int:
     if args.top_k < 1:
         raise ValueError("--top-k must be >= 1")
     plans = [
-        (target, rank, default_source_path(target, rank), default_output_path(target, rank))
+        (
+            target,
+            rank,
+            default_source_path(target, rank, args.source_dir),
+            default_output_path(target, rank, args.output_dir),
+        )
         for target in args.targets
         for rank in range(1, args.top_k + 1)
     ]

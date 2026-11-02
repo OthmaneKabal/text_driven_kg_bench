@@ -205,7 +205,7 @@ randomness seeds by default. They persist completed runs and can therefore be
 restarted safely after an interruption. Generate the required graph variants
 first with the command in the previous section.
 
-### Experiment 1 -- Main graphs
+### Experiment 1: Main graphs
 
 Evaluates all seven GNN architectures on `GT2KG_kg`, `KG_GEN_kg`, and
 `UMLS_nci_kg`, using Sentence-BERT and Random-384 initializations and hidden
@@ -219,7 +219,7 @@ python experiments/experiment_1_static_scheduler.py \
 The runner applies its documented graph/model-specific worker schedule. Use
 `--max-processes N` to cap it for a smaller GPU allocation.
 
-### Experiment 2 -- Preprocessing ablation
+### Experiment 2: Preprocessing ablation
 
 Evaluates the raw, no-frequency-filter, no-semantic-type, and (for UMLS-NCI)
 with-inverse variants. Each architecture uses the hidden width selected on the
@@ -230,7 +230,7 @@ python experiments/experiment_2_selected_variants.py \
   --results-dir results/experiment_2_preprocessing_variants
 ```
 
-### Experiment 3 -- Scale and sparsity controls
+### Experiment 3: Scale and sparsity controls
 
 Evaluates the three scale-matched and three scale+sparsity-matched UMLS-NCI
 controls for each target TDG, using Sentence-BERT.
@@ -241,7 +241,7 @@ python experiments/experiment_3_scale_sparsity_controls.py \
   --num-workers 4
 ```
 
-### Experiment 4 -- No-graph baselines
+### Experiment 4: No-graph baselines
 
 Evaluates the MLP baseline without graph propagation, using Sentence-BERT and
 Random-384 features under the same split/seed protocol.
@@ -252,7 +252,7 @@ python experiments/experiment_4_no_graph.py \
   --num-workers 4
 ```
 
-### Experiment 5 -- Random scale and sparsity controls
+### Experiment 5: Random scale and sparsity controls
 
 Repeats Experiment 3 with Random-384 initialization, isolating the effect of
 the initial language-model features.
@@ -263,22 +263,16 @@ python experiments/experiment_5_scale_sparsity_random.py \
   --num-workers 4
 ```
 
-### Per-class Sentence-BERT results
+## Licences
 
-The main experiment reports aggregate metrics. To additionally obtain
-precision, recall, F1, and support per class for every architecture, replay
-the validation-selected Sentence-BERT configurations while saving test
-predictions, then aggregate them:
+TDGBench uses separate licences by material:
 
-```bash
-python experiments/replay_experiment_1_plm_predictions.py \
-  --results-dir results/experiment_1_plm_per_class_replay
+| Material | Licence / terms |
+|---|---|
+| Code and the `tdg-bench` library | MIT; see `LICENSE` |
+| GT2KG and KG-GEN graphs, their variants, graph packaging, split indices, and TDGBench-created annotations | CC BY 4.0; see `LICENSE_DATA.md` |
+| Mapped MedMentions text corpus | Upstream CC0 1.0 dedication; retain provenance and cite the source |
+| UMLS 2024AB content and generated UMLS-NCI graphs | Not redistributed; subject to the UMLS licence agreement |
 
-python evaluate/per_class_performance.py \
-  --plm-results-dir results/experiment_1_plm_per_class_replay \
-  --output-dir results/experiment_1_plm_per_class_metrics
-```
-
-Use `--smoke-test` to validate an experiment runner with two epochs before a
-full run. The result directories contain the detailed JSON files, per-run CSV
-files, and aggregate summaries required for the tables and statistical tests.
+See `LICENSE_DATA.md` and `THIRD_PARTY_NOTICES.md` for the exact scope and
+third-party notices.
